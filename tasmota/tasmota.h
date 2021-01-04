@@ -20,7 +20,7 @@
 #ifndef _TASMOTA_H_
 #define _TASMOTA_H_
 
-#define USE_CONFIG_OVERRIDE
+// #define USE_CONFIG_OVERRIDE
 
 /*********************************************************************************************\
  * Performance ROM (PROGMEM) vs RAM (RODATA)

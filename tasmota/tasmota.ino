@@ -331,10 +331,6 @@ void setup(void) {
   if (bitRead(Settings.rule_enabled, 0)) Run_Scripter(">BS",3,0);
 #endif
 
-#ifdef USE_RF24GW
-  rf24gw_setup();
-#endif
-
   TasmotaGlobal.rules_flag.system_init = 1;
 }
 
@@ -429,10 +425,6 @@ void loop(void) {
   }
 
   if (!TasmotaGlobal.serial_local) { SerialInput(); }
-
-#ifdef USE_RF24GW
-  rf24gw_handle();
-#endif
 
 #ifdef USE_ARDUINO_OTA
   ArduinoOtaLoop();
