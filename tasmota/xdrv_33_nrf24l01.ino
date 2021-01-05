@@ -75,7 +75,7 @@ typedef struct {
 
 udpdata_t udpdata;
 
-WiFiUDP udp;
+WiFiUDP udpServer;
 WiFiServer tcpServer(RF24GW_TCP_PORTNO);
 WiFiClient clients[RF24GW_MAX_TCP_CONNECTIONS];
 
@@ -99,12 +99,6 @@ bool NRF24initRadio() {
   NRF24radio.begin(Pin(GPIO_NRF24_CS), Pin(GPIO_NRF24_DC));
   NRF24radio.powerUp();
   if (NRF24radio.isChipConnected()) {
-//    DEBUG_DRIVER_LOG(PSTR("NRF: Chip connected"));
-//    if ( NRF24radio.isPVariant() ) {
-//      AddLog_P(LOG_LEVEL_INFO, "NRF: Radio is NRF24L01+");
-//    } else {
-//      AddLog_P(LOG_LEVEL_INFO, "NRF: Radio is NRF24L01");
-//    }
     return true;
   } else {
     DEBUG_DRIVER_LOG(PSTR("NRF: Chip NOT !!!! connected"));
@@ -138,8 +132,10 @@ void rf24gw_init(void) {
     NRF24radio.openWritingPipe(rf24gw_hub2node);
     NRF24radio.openReadingPipe(1,rf24gw_node2hub);
     NRF24radio.startListening();
-    udp.begin(RF24GW_UDP_PORTNO);
     tcpServer.begin();
+    AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: TCP Server started on port %u"),RF24GW_TCP_PORTNO);
+    udpServer.begin(RF24GW_UDP_PORTNO);
+    AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: UDP Server started on port %u"),udpServer.localPort());
 }
 
 bool append_until(Stream& source, char* buffer, int bufSize, char terminator) {
@@ -162,24 +158,30 @@ bool append_until(Stream& source, char* buffer, int bufSize, char terminator) {
 }
 
 void rf24gw_handle(void) {
+  if ( udpServer.localPort() == 0 ) {
+    udpServer.begin(RF24GW_UDP_PORTNO);
+    AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: >>> UDP Server restarted on port %u"),udpServer.localPort());
+  }
   while ( NRF24radio.available() ) {
     NRF24radio.read(&payload, sizeof(payload));
-    if (rf24_verboselevel & RF24GW_VERBOSERF24) 
+    if (rf24_verboselevel & RF24GW_VERBOSERF24) {
         AddLog_P(LOG_LEVEL_INFO, "RF24GW: Got radio from Node: %u", payload.node_id);
+    }
     memcpy(&udpdata.payload, &payload, sizeof(payload));
     udpdata.gw_no = RF24GW_GW_NO;
-    udp.beginPacket(RF24GW_HUB_IP, RF24GW_HUB_UDP_PORTNO);
-    udp.write((char*)&udpdata, sizeof(udpdata));
-    udp.endPacket();
+    udpServer.beginPacket(RF24GW_HUB_IP, RF24GW_HUB_UDP_PORTNO);
+    udpServer.write((char*)&udpdata, sizeof(udpdata));
+    udpServer.endPacket();
   }
-  if (udp.parsePacket() > 0 ) {
-    udp.read((char*)&udpdata, sizeof(udpdata));
+  if (udpServer.parsePacket() > 0 ) {
+    udpServer.read((char*)&udpdata, sizeof(udpdata));
     memcpy(&payload, &udpdata.payload, sizeof(payload));
     NRF24radio.stopListening();
     NRF24radio.write(&payload, sizeof(payload));
     NRF24radio.startListening(); 
-    if (rf24_verboselevel & RF24GW_VERBOSERF24) 
+    if (rf24_verboselevel & RF24GW_VERBOSERF24) {
         AddLog_P(LOG_LEVEL_INFO, "RF24GW: send radio to Node: %u", payload.node_id);
+    }
   }
   WiFiClient client = tcpServer.available();
   if (client) {
@@ -201,10 +203,6 @@ void rf24gw_handle(void) {
   if (clients[i].available()) {
      // Collect characters until line break
      if (append_until(clients[i],rf24gw_tcp_buffer[i],sizeof(rf24gw_tcp_buffer[i]),'\n')) {        
-         // Send an echo back
-//         clients[i].print(F("Echo: "));
-//         clients[i].print(rf24gw_tcp_buffer[i]);
-            
          // Execute some commands
             if (strstr(rf24gw_tcp_buffer[i], "set") && strstr(rf24gw_tcp_buffer[i], "verbose") && strstr(rf24gw_tcp_buffer[i], "+rf24")) {
                 clients[i].println(F("Verboselevel rf24 is on"));  
@@ -228,7 +226,6 @@ void rf24gw_handle(void) {
          rf24gw_tcp_buffer[i][0]='\0';
      }
   }
-    
   // Switch to the next connection for the next call
   if (++i >= RF24GW_MAX_TCP_CONNECTIONS) {
      i=0;
