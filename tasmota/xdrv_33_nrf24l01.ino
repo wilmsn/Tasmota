@@ -20,7 +20,8 @@
   --------------------------------------------------------------------------------------------
   Version yyyymmdd  Action    Description
   --------------------------------------------------------------------------------------------
-
+  0.9.1.0 20210107  change  - added rf24gw
+  ---
   0.9.0.1 20200624  changes - removed unused legacy code
   ---
   0.9.0.0 20191127  started - further development by Christian Baars
@@ -83,6 +84,7 @@ uint8_t  rf24gw_node2hub[] = RF24GW_NODE2HUB;
 uint8_t  rf24gw_hub2node[] = RF24GW_HUB2NODE;
 char rf24gw_tcp_buffer[RF24GW_MAX_TCP_CONNECTIONS][30];
 uint16_t rf24_verboselevel = RF24GW_STARTUPVERBOSELEVEL;
+char webmsg[50];
 #endif
 
 const char NRF24type[] PROGMEM = "NRF24";
@@ -132,8 +134,13 @@ void rf24gw_init(void) {
     NRF24radio.openWritingPipe(rf24gw_hub2node);
     NRF24radio.openReadingPipe(1,rf24gw_node2hub);
     NRF24radio.startListening();
+    if (NRF24radio.isPVariant()) {
+      sprintf(webmsg,PSTR("started"));
+    } else {
+      sprintf(webmsg,PSTR("error"));
+    }
     tcpServer.begin();
-    AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: TCP Server started on port %u"),RF24GW_TCP_PORTNO);
+    AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW TCP Server started on port %u"),RF24GW_TCP_PORTNO);
     udpServer.begin(RF24GW_UDP_PORTNO);
     AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: UDP Server started on port %u"),udpServer.localPort());
 }
@@ -165,14 +172,15 @@ void rf24gw_handle(void) {
   while ( NRF24radio.available() ) {
     NRF24radio.read(&payload, sizeof(payload));
     if (rf24_verboselevel & RF24GW_VERBOSERF24) {
-        AddLog_P(LOG_LEVEL_INFO, "RF24GW: Got radio from Node: %u", payload.node_id);
+        AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: Got radio from Node: %u"), payload.node_id);
     }
     memcpy(&udpdata.payload, &payload, sizeof(payload));
     udpdata.gw_no = RF24GW_GW_NO;
     udpServer.beginPacket(RF24GW_HUB_IP, RF24GW_HUB_UDP_PORTNO);
     udpServer.write((char*)&udpdata, sizeof(udpdata));
     udpServer.endPacket();
-  }
+    sprintf(webmsg,PSTR("N>H: %u"), payload.node_id);
+   }
   if (udpServer.parsePacket() > 0 ) {
     udpServer.read((char*)&udpdata, sizeof(udpdata));
     memcpy(&payload, &udpdata.payload, sizeof(payload));
@@ -180,8 +188,9 @@ void rf24gw_handle(void) {
     NRF24radio.write(&payload, sizeof(payload));
     NRF24radio.startListening(); 
     if (rf24_verboselevel & RF24GW_VERBOSERF24) {
-        AddLog_P(LOG_LEVEL_INFO, "RF24GW: send radio to Node: %u", payload.node_id);
+        AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: send radio to Node: %u"), payload.node_id);
     }
+    sprintf(webmsg,PSTR("H>N: %u"), payload.node_id);
   }
   WiFiClient client = tcpServer.available();
   if (client) {
@@ -192,7 +201,7 @@ void rf24gw_handle(void) {
             clients[i] = client;
             rf24gw_tcp_buffer[i][0]='\0';
             // Send a welcome message
-            client.print(F("RF24GW> "));
+            client.print(PSTR("RF24GW> "));
             return;
          }
      }
@@ -205,21 +214,21 @@ void rf24gw_handle(void) {
      if (append_until(clients[i],rf24gw_tcp_buffer[i],sizeof(rf24gw_tcp_buffer[i]),'\n')) {        
          // Execute some commands
             if (strstr(rf24gw_tcp_buffer[i], "set") && strstr(rf24gw_tcp_buffer[i], "verbose") && strstr(rf24gw_tcp_buffer[i], "+rf24")) {
-                clients[i].println(F("Verboselevel rf24 is on"));  
+                clients[i].println(PSTR("Verboselevel rf24 is on"));  
                 rf24_verboselevel |= RF24GW_VERBOSERF24;
                 clients[i].stop();
-                AddLog_P(LOG_LEVEL_INFO, "RF24GW: Verboselevel rf24 on");
+                AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: Verboselevel rf24 on"));
             } else
             if (strstr(rf24gw_tcp_buffer[i], "set") && strstr(rf24gw_tcp_buffer[i], "verbose") && strstr(rf24gw_tcp_buffer[i], "-rf24")) {
-                clients[i].println(F("Verboselevel rf24 is off"));  
+                clients[i].println(PSTR("Verboselevel rf24 is off"));  
                 rf24_verboselevel ^= RF24GW_VERBOSERF24;
                 clients[i].stop();
-                AddLog_P(LOG_LEVEL_INFO, "RF24GW: Verboselevel rf24 off");
+                AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: Verboselevel rf24 off"));
             } else
             { 
-                clients[i].println(F("Invalid command"));  
-                clients[i].println(F("Valid commands are:"));  
-                clients[i].println(F("set verbose <+/->rf24"));  
+                clients[i].println(PSTR("Invalid command"));  
+                clients[i].println(PSTR("Valid commands are:"));  
+                clients[i].println(PSTR("set verbose <+/->rf24"));  
                 clients[i].stop();
             }
          // Clear the buffer to receive the next line
@@ -231,6 +240,10 @@ void rf24gw_handle(void) {
      i=0;
   }
     
+}
+
+void rf24gw_showWeb(void) {
+  WSContentSend_PD(PSTR("{s}RF24GW{m}%s{e}"),webmsg);
 }
 
 #endif
@@ -245,10 +258,15 @@ bool Xdrv33(uint8_t function) {
   switch(function) {
     case FUNC_INIT:
       NRF24Detect();
+#ifdef USE_RF24GW
       rf24gw_init();
     break;
     case FUNC_EVERY_50_MSECOND:
       rf24gw_handle();
+    break;
+    case FUNC_WEB_SENSOR:
+      rf24gw_showWeb();
+#endif
     break;
   }
   return result;
