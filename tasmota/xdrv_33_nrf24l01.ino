@@ -123,6 +123,7 @@ void NRF24Detect(void) {
 
 #ifdef USE_RF24GW
 void rf24gw_init(void) {
+  if (NRF24radio.isChipConnected()) {
     NRF24radio.setChannel(RF24GW_CHANNEL);
     NRF24radio.setDataRate(RF24GW_SPEED);
     NRF24radio.setPALevel(RF24_PA_MAX);
@@ -140,9 +141,10 @@ void rf24gw_init(void) {
       sprintf(webmsg,PSTR("error"));
     }
     tcpServer.begin();
-    AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW TCP Server started on port %u"),RF24GW_TCP_PORTNO);
+    AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: TCP Server started on port %u"),RF24GW_TCP_PORTNO);
     udpServer.begin(RF24GW_UDP_PORTNO);
     AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: UDP Server started on port %u"),udpServer.localPort());
+  }
 }
 
 bool append_until(Stream& source, char* buffer, int bufSize, char terminator) {
@@ -243,7 +245,9 @@ void rf24gw_handle(void) {
 }
 
 void rf24gw_showWeb(void) {
-  WSContentSend_PD(PSTR("{s}RF24GW{m}%s{e}"),webmsg);
+  if (NRF24radio.isChipConnected()) {
+    WSContentSend_PD(PSTR("{s}RF24GW{m}%s{e}"),webmsg);
+  }
 }
 
 #endif
