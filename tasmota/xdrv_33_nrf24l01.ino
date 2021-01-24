@@ -245,9 +245,7 @@ void rf24gw_handle(void) {
 }
 
 void rf24gw_showWeb(void) {
-  if (NRF24radio.isChipConnected()) {
-    WSContentSend_PD(PSTR("{s}RF24GW{m}%s{e}"),webmsg);
-  }
+  WSContentSend_PD(PSTR("{s}RF24GW{m}%s{e}"),webmsg);
 }
 
 #endif
@@ -263,13 +261,13 @@ bool Xdrv33(uint8_t function) {
     case FUNC_INIT:
       NRF24Detect();
 #ifdef USE_RF24GW
-      rf24gw_init();
+      if (NRF24.chipType == 43) rf24gw_init();
     break;
     case FUNC_EVERY_50_MSECOND:
-      rf24gw_handle();
+      if (NRF24.chipType == 43) rf24gw_handle();
     break;
     case FUNC_WEB_SENSOR:
-      rf24gw_showWeb();
+      if (NRF24.chipType == 43) rf24gw_showWeb();
 #endif
     break;
   }
