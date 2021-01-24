@@ -1,7 +1,7 @@
 /*
   xdrv_23_zigbee.ino - zigbee support for Tasmota
 
-  Copyright (C) 2020  Theo Arends and Stephan Hadinger
+  Copyright (C) 2021  Theo Arends and Stephan Hadinger
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 */
 
 #ifdef USE_ZIGBEE
-#if defined(USE_WEBSERVER) && defined(USE_EMULATION) && defined(USE_EMULATION_HUE) && defined(USE_LIGHT)
+#if defined(USE_WEBSERVER) && defined(USE_EMULATION) && defined(USE_EMULATION_HUE)
 
 // Add global functions for Hue Emulation
 
@@ -62,13 +62,13 @@ void HueLightStatus1Zigbee(uint16_t shortaddr, uint8_t local_light_subtype, Stri
   const size_t buf_size = 256;
   char * buf = (char*) malloc(buf_size);     // temp buffer for strings, avoid stack
 
-  snprintf_P(buf, buf_size, PSTR("{\"on\":%s,"), power ? "true" : "false");
+  snprintf_P(buf, buf_size, PSTR("{\"on\":%s,"), power ? PSTR("true") : PSTR("false"));
   // Brightness for all devices with PWM
   if ((1 == echo_gen) || (LST_SINGLE <= local_light_subtype)) { // force dimmer for 1st gen Echo
     snprintf_P(buf, buf_size, PSTR("%s\"bri\":%d,"), buf, bri);
   }
   if (LST_COLDWARM <= local_light_subtype) {
-    snprintf_P(buf, buf_size, PSTR("%s\"colormode\":\"%s\","), buf, (0 == colormode) ? "hs" : (1 == colormode) ? "xy" : "ct");
+    snprintf_P(buf, buf_size, PSTR("%s\"colormode\":\"%s\","), buf, (0 == colormode) ? PSTR("hs") : (1 == colormode) ? PSTR("xy") : PSTR("ct"));
   }
   if (LST_RGB <= local_light_subtype) {  // colors
     if (prev_x_str[0] && prev_y_str[0]) {
@@ -83,7 +83,7 @@ void HueLightStatus1Zigbee(uint16_t shortaddr, uint8_t local_light_subtype, Stri
   if (LST_COLDWARM == local_light_subtype || LST_RGBW <= local_light_subtype) {  // white temp
     snprintf_P(buf, buf_size, PSTR("%s\"ct\":%d,"), buf, ct > 0 ? ct : 284);
   }
-  snprintf_P(buf, buf_size, HUE_LIGHTS_STATUS_JSON1_SUFFIX_ZIGBEE, buf, reachable ? "true" : "false");
+  snprintf_P(buf, buf_size, HUE_LIGHTS_STATUS_JSON1_SUFFIX_ZIGBEE, buf, reachable ? PSTR("true") : PSTR("false"));
 
   *response += buf;
   free(buf);
@@ -101,7 +101,8 @@ void HueLightStatus2Zigbee(uint16_t shortaddr, String *response)
   char shortaddrname[8];
   snprintf_P(shortaddrname, sizeof(shortaddrname), PSTR("0x%04X"), shortaddr);
 
-  snprintf_P(buf, buf_size, HUE_LIGHTS_STATUS_JSON2,
+  UnishoxStrings msg(HUE_LIGHTS);
+  snprintf_P(buf, buf_size, msg[HUE_LIGHTS_STATUS_JSON2],
               (friendlyName) ? EscapeJSONString(friendlyName).c_str() : shortaddrname,
               (modelId) ? EscapeJSONString(modelId).c_str() : PSTR("Unknown"),
               (manufacturerId) ? EscapeJSONString(manufacturerId).c_str() : PSTR("Tasmota"),
@@ -169,7 +170,7 @@ void ZigbeeHueDimmer(uint16_t shortaddr, uint8_t dimmer) {
 // CT
 void ZigbeeHueCT(uint16_t shortaddr, uint16_t ct) {
   if (ct > 0xFEFF) { ct = 0xFEFF; }
-  AddLog_P(LOG_LEVEL_INFO, PSTR("ZigbeeHueCT 0x%04X - %d"), shortaddr, ct);
+  AddLog(LOG_LEVEL_INFO, PSTR("ZigbeeHueCT 0x%04X - %d"), shortaddr, ct);
   char param[12];
   snprintf_P(param, sizeof(param), PSTR("%02X%02X0A00"), ct & 0xFF, ct >> 8);
   uint8_t colormode = 2;      // "ct"
@@ -219,6 +220,7 @@ void ZigbeeHandleHue(uint16_t shortaddr, uint32_t device_id, String &response) {
 
   const size_t buf_size = 100;
   char * buf = (char*) malloc(buf_size);
+  UnishoxStrings msg(HUE_LIGHTS);
 
   if (Webserver->args()) {
     response = "[";
@@ -230,8 +232,8 @@ void ZigbeeHandleHue(uint16_t shortaddr, uint32_t device_id, String &response) {
     if (hue_on) {
       on = hue_on.getBool();
       snprintf_P(buf, buf_size,
-                 PSTR("{\"success\":{\"/lights/%d/state/on\":%s}}"),
-                 device_id, on ? "true" : "false");
+                 msg[HUE_RESP_ON],
+                 device_id, on ? PSTR("true") : PSTR("false"));
 
       if (on) {
         ZigbeeHuePower(shortaddr, 0x01);
@@ -249,8 +251,8 @@ void ZigbeeHandleHue(uint16_t shortaddr, uint32_t device_id, String &response) {
       prev_bri = bri;   // store command value
       if (resp) { response += ","; }
       snprintf_P(buf, buf_size,
-                 PSTR("{\"success\":{\"/lights/%d/state/%s\":%d}}"),
-                 device_id, "bri", bri);
+                 msg[HUE_RESP_NUM],
+                 device_id, PSTR("bri"), bri);
       response += buf;
       if (LST_SINGLE <= bulbtype) {
         // extend bri value if set to max
@@ -273,7 +275,7 @@ void ZigbeeHandleHue(uint16_t shortaddr, uint32_t device_id, String &response) {
       strlcpy(prev_y_str, tok_y.getStr(), sizeof(prev_y_str));
       if (resp) { response += ","; }
       snprintf_P(buf, buf_size,
-                 PSTR("{\"success\":{\"/lights/%d/state/xy\":[%s,%s]}}"),
+                 msg[HUE_RESP_XY],
                  device_id, prev_x_str, prev_y_str);
       response += buf;
       resp = true;
@@ -290,8 +292,8 @@ void ZigbeeHandleHue(uint16_t shortaddr, uint32_t device_id, String &response) {
       prev_hue = hue;
       if (resp) { response += ","; }
       snprintf_P(buf, buf_size,
-                 PSTR("{\"success\":{\"/lights/%d/state/%s\":%d}}"),
-                 device_id, "hue", hue);
+                 msg[HUE_RESP_NUM],
+                 device_id, PSTR("hue"), hue);
       response += buf;
       if (LST_RGB <= bulbtype) {
         // change range from 0..65535 to 0..360
@@ -308,8 +310,8 @@ void ZigbeeHandleHue(uint16_t shortaddr, uint32_t device_id, String &response) {
       prev_sat = sat;   // store command value
       if (resp) { response += ","; }
       snprintf_P(buf, buf_size,
-                 PSTR("{\"success\":{\"/lights/%d/state/%s\":%d}}"),
-                 device_id, "sat", sat);
+                 msg[HUE_RESP_NUM],
+                 device_id, PSTR("sat"), sat);
       response += buf;
       if (LST_RGB <= bulbtype) {
         // extend sat value if set to max
@@ -329,8 +331,8 @@ void ZigbeeHandleHue(uint16_t shortaddr, uint32_t device_id, String &response) {
       prev_ct = ct;   // store commande value
       if (resp) { response += ","; }
       snprintf_P(buf, buf_size,
-                 PSTR("{\"success\":{\"/lights/%d/state/%s\":%d}}"),
-                 device_id, "ct", ct);
+                 msg[HUE_RESP_NUM],
+                 device_id, PSTR("ct"), ct);
       response += buf;
       if ((LST_COLDWARM == bulbtype) || (LST_RGBW <= bulbtype)) {
         ZigbeeHueCT(shortaddr, ct);
@@ -340,11 +342,11 @@ void ZigbeeHandleHue(uint16_t shortaddr, uint32_t device_id, String &response) {
 
     response += "]";
     if (2 == response.length()) {
-      response = FPSTR(HUE_ERROR_JSON);
+      response = msg[HUE_ERROR_JSON];
     }
   }
   else {
-    response = FPSTR(HUE_ERROR_JSON);
+    response = msg[HUE_ERROR_JSON];
   }
   AddLog_P(LOG_LEVEL_DEBUG_MORE, PSTR(D_LOG_HTTP D_HUE " Result (%s)"), response.c_str());
   WSSend(code, CT_JSON, response);

@@ -1,7 +1,7 @@
 /*
   support_command.ino - command support for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -110,7 +110,7 @@ void ResponseCmndStateText(uint32_t value)
 
 void ResponseCmndDone(void)
 {
-  ResponseCmndChar(D_JSON_DONE);
+  ResponseCmndChar(PSTR(D_JSON_DONE));
 }
 
 void ResponseCmndIdxChar(const char* value)
@@ -227,7 +227,7 @@ void CommandHandler(char* topicBuf, char* dataBuf, uint32_t data_len)
     type[i] = '\0';
   }
 
-  AddLog_P(LOG_LEVEL_DEBUG, PSTR("CMD: " D_GROUP " %d, " D_INDEX " %d, " D_COMMAND " \"%s\", " D_DATA " \"%s\""), grpflg, index, type, dataBuf);
+  AddLog(LOG_LEVEL_DEBUG, PSTR("CMD: " D_GROUP " %d, " D_INDEX " %d, " D_COMMAND " \"%s\", " D_DATA " \"%s\""), grpflg, index, type, dataBuf);
 
   if (type != nullptr) {
     Response_P(PSTR("{\"" D_JSON_COMMAND "\":\"" D_JSON_ERROR "\"}"));
@@ -352,7 +352,7 @@ void CmndBacklog(void)
 #else
     TasmotaGlobal.backlog_pointer = TasmotaGlobal.backlog_index;
 #endif
-    ResponseCmndChar(blflag ? D_JSON_EMPTY : D_JSON_ABORTED);
+    ResponseCmndChar(blflag ? PSTR(D_JSON_EMPTY) : PSTR(D_JSON_ABORTED));
   }
 }
 
@@ -510,8 +510,8 @@ void CmndStatus(void)
     Response_P(PSTR("{\"" D_CMND_STATUS D_STATUS5_NETWORK "\":{\"" D_CMND_HOSTNAME "\":\"%s\",\"" D_CMND_IPADDRESS "\":\"%s\",\"" D_JSON_GATEWAY "\":\"%s\",\""
                           D_JSON_SUBNETMASK "\":\"%s\",\"" D_JSON_DNSSERVER "\":\"%s\",\"" D_JSON_MAC "\":\"%s\",\""
                           D_CMND_WEBSERVER "\":%d,\"" D_CMND_WIFICONFIG "\":%d,\"" D_CMND_WIFIPOWER "\":%s}}"),
-                          NetworkHostname(), NetworkAddress().toString().c_str(), IPAddress(Settings.ip_address[1]).toString().c_str(),
-                          IPAddress(Settings.ip_address[2]).toString().c_str(), IPAddress(Settings.ip_address[3]).toString().c_str(), NetworkMacAddress().c_str(),
+                          NetworkHostname(), NetworkAddress().toString().c_str(), IPAddress(Settings.ipv4_address[1]).toString().c_str(),
+                          IPAddress(Settings.ipv4_address[2]).toString().c_str(), IPAddress(Settings.ipv4_address[3]).toString().c_str(), NetworkMacAddress().c_str(),
                           Settings.webserver, Settings.sta_config, WifiGetOutputPower().c_str());
     MqttPublishPrefixTopic_P(STAT, PSTR(D_CMND_STATUS "5"));
   }
@@ -727,12 +727,12 @@ void CmndRestart(void)
   switch (XdrvMailbox.payload) {
   case 1:
     TasmotaGlobal.restart_flag = 2;
-    ResponseCmndChar(D_JSON_RESTARTING);
+    ResponseCmndChar(PSTR(D_JSON_RESTARTING));
     break;
   case 2:
     TasmotaGlobal.restart_flag = 2;
     TasmotaGlobal.restart_halt = true;
-    ResponseCmndChar(D_JSON_HALTING);
+    ResponseCmndChar(PSTR(D_JSON_HALTING));
     break;
   case -1:
     CmndCrash();    // force a crash
@@ -744,7 +744,7 @@ void CmndRestart(void)
     CmndBlockedLoop();
     break;
   case 99:
-    AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_RESTARTING));
+    AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_RESTARTING));
     EspRestart();
     break;
   default:
@@ -884,7 +884,12 @@ void CmndSetoption(void)
 #endif
 #if (defined(USE_IR_REMOTE) && defined(USE_IR_RECEIVE)) || defined(USE_IR_REMOTE_FULL)
           if (P_IR_UNKNOW_THRESHOLD == pindex) {
-            IrReceiveUpdateThreshold();
+            IrReceiveUpdateThreshold();    // SetOption38
+          }
+#endif
+#ifdef ROTARY_V1
+          if (P_ROTARY_MAX_STEP == pindex) {
+            RotaryInitMaxSteps();          // SetOption43
           }
 #endif
         } else {
@@ -962,8 +967,9 @@ void CmndSetoption(void)
             bitWrite(Settings.flag5.data, pindex, XdrvMailbox.payload);
             switch (pindex) {
               case 1:                      // SetOption115 - Enable ESP32 MI32
-                Settings.flag3.sleep_normal = 1;  // SetOption60 - Enable normal sleep instead of dynamic sleep
-                TasmotaGlobal.restart_flag = 2;
+                if (0 == XdrvMailbox.payload) {
+                  TasmotaGlobal.restart_flag = 2;
+                }
                 break;
             }
           }
@@ -1124,7 +1130,7 @@ void CmndModules(void)
     }
     jsflg = true;
     uint32_t j = i ? midx +1 : 0;
-    if ((ResponseAppend_P(PSTR("\"%d\":\"%s\""), j, AnyModuleName(midx).c_str()) > (LOGSZ - TOPSZ)) || (i == sizeof(kModuleNiceList))) {
+    if ((ResponseAppend_P(PSTR("\"%d\":\"%s\""), j, AnyModuleName(midx).c_str()) > (MAX_LOGSZ - TOPSZ)) || (i == sizeof(kModuleNiceList))) {
       ResponseJsonEndEnd();
       MqttPublishPrefixTopic_P(RESULT_OR_STAT, XdrvMailbox.command);
       jsflg = false;
@@ -1192,18 +1198,21 @@ void CmndGpio(void)
           sensor_names = kSensorNamesFixed;
         }
         char stemp1[TOPSZ];
-        if ((ResponseAppend_P(PSTR("\"" D_CMND_GPIO "%d\":{\"%d\":\"%s%s\"}"), i, sensor_type, GetTextIndexed(stemp1, sizeof(stemp1), sensor_name_idx, sensor_names), sindex) > (LOGSZ - TOPSZ)) || (i == ARRAY_SIZE(Settings.my_gp.io) -1)) {
+        if ((ResponseAppend_P(PSTR("\"" D_CMND_GPIO "%d\":{\"%d\":\"%s%s\"}"), i, sensor_type, GetTextIndexed(stemp1, sizeof(stemp1), sensor_name_idx, sensor_names), sindex) > (MAX_LOGSZ - TOPSZ)) || (i == ARRAY_SIZE(Settings.my_gp.io) -1)) {
           ResponseJsonEnd();
           MqttPublishPrefixTopic_P(RESULT_OR_STAT, XdrvMailbox.command);
+          ResponseClear();
           jsflg2 = true;
           jsflg = false;
         }
       }
     }
-    if (jsflg2) {
-      ResponseClear();
+    if (jsflg) {
+      ResponseJsonEnd();
     } else {
-      ResponseCmndChar(D_JSON_NOT_SUPPORTED);
+      if (!jsflg2) {
+        ResponseCmndChar(PSTR(D_JSON_NOT_SUPPORTED));
+      }
     }
   }
 }
@@ -1227,7 +1236,7 @@ void ShowGpios(const uint16_t *NiceList, uint32_t size, uint32_t offset, uint32_
     }
     jsflg = true;
     char stemp1[TOPSZ];
-    if ((ResponseAppend_P(PSTR("\"%d\":\"%s\""), ridx, GetTextIndexed(stemp1, sizeof(stemp1), midx, kSensorNames)) > (LOGSZ - TOPSZ)) || (i == size -1)) {
+    if ((ResponseAppend_P(PSTR("\"%d\":\"%s\""), ridx, GetTextIndexed(stemp1, sizeof(stemp1), midx, kSensorNames)) > (MAX_LOGSZ - TOPSZ)) || (i == size -1)) {
       ResponseJsonEndEnd();
       MqttPublishPrefixTopic_P(RESULT_OR_STAT, XdrvMailbox.command);
       jsflg = false;
@@ -1276,7 +1285,7 @@ void CmndTemplate(void)
       if (Settings.module != USER_MODULE) {
         ModuleDefault(Settings.module);
       }
-      SettingsUpdateText(SET_TEMPLATE_NAME, "Merged");
+      SettingsUpdateText(SET_TEMPLATE_NAME, PSTR("Merged"));
       uint32_t j = 0;
       for (uint32_t i = 0; i < ARRAY_SIZE(Settings.user_template.gp.io); i++) {
         if (6 == i) { j = 9; }
@@ -1491,18 +1500,18 @@ void CmndIpAddress(void)
       snprintf_P(stemp1, sizeof(stemp1), PSTR(" %s"), NetworkAddress().toString().c_str());
       ResponseClear();
       for (uint32_t i = 0; i < 4; i++) {
-        ResponseAppend_P(PSTR("%c\"%s%d\":\"%s%s\""), (i) ? ',' : '{', XdrvMailbox.command, i +1, IPAddress(Settings.ip_address[i]).toString().c_str(), (0 == i) ? stemp1:"");
+        ResponseAppend_P(PSTR("%c\"%s%d\":\"%s%s\""), (i) ? ',' : '{', XdrvMailbox.command, i +1, IPAddress(Settings.ipv4_address[i]).toString().c_str(), (0 == i) ? stemp1:"");
       }
       ResponseJsonEnd();
     } else {
-      uint32_t address;
-      if (ParseIp(&address, XdrvMailbox.data)) {
-        Settings.ip_address[XdrvMailbox.index -1] = address;
+      uint32_t ipv4_address;
+      if (ParseIPv4(&ipv4_address, XdrvMailbox.data)) {
+        Settings.ipv4_address[XdrvMailbox.index -1] = ipv4_address;
 //        TasmotaGlobal.restart_flag = 2;
       }
       char stemp1[TOPSZ];
       snprintf_P(stemp1, sizeof(stemp1), PSTR(" %s"), NetworkAddress().toString().c_str());
-      Response_P(S_JSON_COMMAND_INDEX_SVALUE_SVALUE, XdrvMailbox.command, XdrvMailbox.index, IPAddress(Settings.ip_address[XdrvMailbox.index -1]).toString().c_str(), (1 == XdrvMailbox.index) ? stemp1:"");
+      Response_P(S_JSON_COMMAND_INDEX_SVALUE_SVALUE, XdrvMailbox.command, XdrvMailbox.index, IPAddress(Settings.ipv4_address[XdrvMailbox.index -1]).toString().c_str(), (1 == XdrvMailbox.index) ? stemp1:"");
     }
   }
 }
@@ -2083,9 +2092,6 @@ void CmndDriver(void)
 
 void CmndInfo(void) {
   NvsInfo();
-#ifdef USE_TFS
-  TfsInfo();
-#endif
   ResponseCmndDone();
 }
 
@@ -2114,7 +2120,7 @@ void CmndTouchCal(void)
   }
   Response_P(PSTR("{\"" D_CMND_TOUCH_CAL "\": %u"), TOUCH_BUTTON.calibration);
   ResponseJsonEnd();
-  AddLog_P(LOG_LEVEL_INFO, PSTR("Button Touchvalue Hits,"));
+  AddLog(LOG_LEVEL_INFO, PSTR("Button Touchvalue Hits,"));
 }
 
 void CmndTouchThres(void)

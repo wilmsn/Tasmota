@@ -1,7 +1,7 @@
 /*
   xdrv_12_home_assistant.ino - home assistant support for Tasmota
 
-  Copyright (C) 2020  Erik Montnemery, Federico Leoni and Theo Arends
+  Copyright (C) 2021  Erik Montnemery, Federico Leoni and Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -197,7 +197,7 @@ const char HASS_DISCOVER_DEVICE[] PROGMEM =                         // Basic par
   "\"tp\":[\"%s\",\"%s\",\"%s\"],"                                  // Topics for command, stat and tele
   "\"rl\":[%s],\"swc\":[%s],\"swn\":[%s],\"btn\":[%s],"             // Inputs / Outputs
   "\"so\":{\"4\":%d,\"11\":%d,\"13\":%d,\"17\":%d,\"20\":%d,"       // SetOptions
-  "\"30\":%d,\"68\":%d,\"73\":%d,\"82\":%d,\"114\":%d},"
+  "\"30\":%d,\"68\":%d,\"73\":%d,\"82\":%d,\"114\":%d,\"117\":%d},"
   "\"lk\":%d,\"lt_st\":%d,\"sho\":[%s],\"ver\":1}";                 // Light SubType, Shutter Options and Discovery version
 
 typedef struct HASS {
@@ -294,7 +294,7 @@ void NewHAssDiscovery(void)
   for (uint32_t i = 0; i < MAX_FRIENDLYNAMES; i++) {
     char fname[TOPSZ];
     snprintf_P(fname, sizeof(fname), PSTR("\"%s\""), EscapeJSONString(SettingsText(SET_FRIENDLYNAME1 +i)).c_str());
-    snprintf_P(stemp2, sizeof(stemp2), PSTR("%s%s%s"), stemp2, (i > 0 ? "," : ""), (i < maxfn) ? fname : "null");
+    snprintf_P(stemp2, sizeof(stemp2), PSTR("%s%s%s"), stemp2, (i > 0 ? "," : ""), (i < maxfn) ? fname : PSTR("null"));
   }
 
   stemp3[0] = '\0';
@@ -304,7 +304,7 @@ void NewHAssDiscovery(void)
     char sname[TOPSZ];
     snprintf_P(sname, sizeof(sname), PSTR("\"%s\""), GetSwitchText(i).c_str());
     snprintf_P(stemp3, sizeof(stemp3), PSTR("%s%s%d"), stemp3, (i > 0 ? "," : ""), (PinUsed(GPIO_SWT1, i) & Settings.flag5.mqtt_switches) ? Settings.switchmode[i] : -1);
-    snprintf_P(stemp4, sizeof(stemp4), PSTR("%s%s%s"), stemp4, (i > 0 ? "," : ""), (PinUsed(GPIO_SWT1, i) & Settings.flag5.mqtt_switches) ? sname : "null");
+    snprintf_P(stemp4, sizeof(stemp4), PSTR("%s%s%s"), stemp4, (i > 0 ? "," : ""), (PinUsed(GPIO_SWT1, i) & Settings.flag5.mqtt_switches) ? sname : PSTR("null"));
   }
 
   stemp5[0] = '\0';
@@ -338,10 +338,10 @@ void NewHAssDiscovery(void)
   if (!Settings.flag.hass_discovery) { // HassDiscoveryRelays(relays)
     Response_P(HASS_DISCOVER_DEVICE, WiFi.localIP().toString().c_str(), SettingsText(SET_DEVICENAME),
               stemp2, TasmotaGlobal.hostname, unique_id, ModuleName().c_str(), TuyaMod, iFanMod, GetStateText(0), GetStateText(1), GetStateText(2), GetStateText(3),
-              TasmotaGlobal.version, TasmotaGlobal.mqtt_topic, SettingsText(SET_MQTT_FULLTOPIC), SUB_PREFIX, PUB_PREFIX, PUB_PREFIX2, Hass.RelLst, stemp3, stemp4,
+              TasmotaGlobal.version, TasmotaGlobal.mqtt_topic, SettingsText(SET_MQTT_FULLTOPIC), PSTR(SUB_PREFIX), PSTR(PUB_PREFIX), PSTR(PUB_PREFIX2), Hass.RelLst, stemp3, stemp4,
               stemp5, Settings.flag.mqtt_response, Settings.flag.button_swap, Settings.flag.button_single, Settings.flag.decimal_text, Settings.flag.not_power_linked,
               Settings.flag.hass_light, Settings.flag3.pwm_multi_channels, Settings.flag3.mqtt_buttons, Settings.flag4.alexa_ct_range, Settings.flag5.mqtt_switches,
-              light_controller.isCTRGBLinked(), Light.subtype, stemp6);
+              Settings.flag5.fade_fixed_duration, light_controller.isCTRGBLinked(), Light.subtype, stemp6);
   }
   MqttPublish(stopic, true);
 
@@ -370,7 +370,7 @@ void TryResponseAppend_P(const char *format, ...)
   {
     AddLog_P(LOG_LEVEL_ERROR, PSTR("%s (%u/%u):"), kHAssError1, dlen, slen);
     va_start(args, format);
-    char log_data[LOGSZ];
+    char log_data[MAX_LOGSZ];
     vsnprintf_P(log_data, sizeof(log_data), format, args);
     AddLogData(LOG_LEVEL_ERROR, log_data);
   }
@@ -1025,7 +1025,7 @@ void HAssAnnounceDeviceInfoAndStatusSensor(void)
 
   if (!Settings.flag.hass_discovery) {
     TasmotaGlobal.masterlog_level = 0;
-    AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_LOG "Home Assistant MQTT Discovery disabled."));
+    AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_LOG "Home Assistant MQTT Discovery disabled."));
   }
 }
 

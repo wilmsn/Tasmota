@@ -1,7 +1,7 @@
 /*
   xdrv_23_zigbee.ino - zigbee support for Tasmota
 
-  Copyright (C) 2020  Theo Arends and Stephan Hadinger
+  Copyright (C) 2021  Theo Arends and Stephan Hadinger
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -195,7 +195,7 @@ int32_t EZ_MessageSent(int32_t res, const class SBuffer &buf) {
   uint16_t group_addr = buf.get16(13);
 
   if ((EMBER_OUTGOING_MULTICAST == message_type) && (0xFFFD == dst_addr)) {
-    AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_ZIGBEE "Sniffing group 0x%04X"), group_addr);
+    AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_ZIGBEE "Sniffing group 0x%04X"), group_addr);
   }
   return -1;    // ignore
 }
@@ -229,7 +229,7 @@ void Z_Send_State_or_Map(uint16_t shortaddr, uint8_t index, uint16_t zdo_cmd) {
 // This callback is registered to send ZbMap(s) to each device one at a time
 void Z_Map(uint16_t shortaddr, uint16_t groupaddr, uint16_t cluster, uint8_t endpoint, uint32_t value) {
   if (BAD_SHORTADDR != shortaddr) {
-    AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "sending `ZbMap 0x%04X`"), shortaddr);
+    AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "sending `ZbMap 0x%04X`"), shortaddr);
 #ifdef USE_ZIGBEE_ZNP
     Z_Send_State_or_Map(shortaddr, value, ZDO_MGMT_LQI_REQ);
 #endif // USE_ZIGBEE_ZNP
@@ -237,7 +237,7 @@ void Z_Map(uint16_t shortaddr, uint16_t groupaddr, uint16_t cluster, uint8_t end
     Z_Send_State_or_Map(shortaddr, value, ZDO_Mgmt_Lqi_req);
 #endif // USE_ZIGBEE_EZSP
   } else {
-    AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "ZbMap done"));
+    AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "ZbMap done"));
     zigbee.mapping_in_progress = false;
     zigbee.mapping_ready = true;
   }
@@ -501,12 +501,15 @@ int32_t ZNP_ReceivePermitJoinStatus(int32_t res, const class SBuffer &buf) {
   if (0xFF == duration) {
     status_code = ZIGBEE_STATUS_PERMITJOIN_OPEN_XX;
     message = PSTR("Enable Pairing mode until next boot");
+    zigbee.permit_end_time = true;   // In ZNP mode, declare permitjoin open
   } else if (duration > 0) {
     status_code = ZIGBEE_STATUS_PERMITJOIN_OPEN_60;
     message = PSTR("Enable Pairing mode for %d seconds");
+    zigbee.permit_end_time = true;   // In ZNP mode, declare permitjoin open
   } else {
     status_code = ZIGBEE_STATUS_PERMITJOIN_CLOSE;
     message = PSTR("Disable Pairing mode");
+    zigbee.permit_end_time = false;   // In ZNP mode, declare permitjoin closed
   }
   Response_P(PSTR("{\"" D_JSON_ZIGBEE_STATE "\":{"
                   "\"Status\":%d,\"Message\":\""),
@@ -884,6 +887,14 @@ int32_t Z_ReceiveEndDeviceAnnonce(int32_t res, const class SBuffer &buf) {
   uint8_t           capabilities = buf.get8(10);
 #endif
 
+  // record if we already knew the ieeeAddr for this device
+  // this will influence the decision whether we do auto-binding or not
+  const Z_Device & device_before = zigbee_devices.findShortAddr(nwkAddr);
+  bool ieee_already_known = false;
+  if (device_before.valid() && (device_before.longaddr != 0) && (device_before.longaddr == ieeeAddr)) {
+    ieee_already_known = true;
+  }
+
   zigbee_devices.updateDevice(nwkAddr, ieeeAddr);
   // device is reachable
   zigbee_devices.deviceWasReached(nwkAddr);
@@ -903,7 +914,10 @@ int32_t Z_ReceiveEndDeviceAnnonce(int32_t res, const class SBuffer &buf) {
   Z_Query_Bulb(nwkAddr, wait_ms);
 
   MqttPublishPrefixTopicRulesProcess_P(RESULT_OR_TELE, PSTR(D_JSON_ZIGBEEZCL_RECEIVED));
-  Z_SendActiveEpReq(nwkAddr);
+  // Continue the discovery process and auto-binding only if the device was unknown or if PermitJoin is ongoing
+  if (!ieee_already_known || zigbee.permit_end_time) {
+    Z_SendActiveEpReq(nwkAddr);
+  }
   return -1;
 }
 
@@ -1379,7 +1393,7 @@ void Z_WriteCIEAddress(uint16_t shortaddr, uint16_t groupaddr, uint16_t cluster,
   buf.add8(ZEUI64);
   buf.add64(localIEEEAddr);
 
-  AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "Writing CIE address"));
+  AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "Writing CIE address"));
   ZigbeeZCLSend_Raw(ZigbeeZCLSendMessage({
     shortaddr,
     0x0000, /* group */
@@ -1403,7 +1417,7 @@ void Z_SendCIEZoneEnrollResponse(uint16_t shortaddr, uint16_t groupaddr, uint16_
   uint8_t transacid = zigbee_devices.getNextSeqNumber(shortaddr);
   uint8_t EnrollRSP[2] = { 0x00 /* Sucess */, Z_B0(value) /* ZoneID */ };
 
-  AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "Sending Enroll Zone %d"), Z_B0(value));
+  AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "Sending Enroll Zone %d"), Z_B0(value));
   ZigbeeZCLSend_Raw(ZigbeeZCLSendMessage({
     shortaddr,
     0x0000, /* group */
@@ -1472,25 +1486,25 @@ typedef struct Z_autoAttributeReporting_t {
 
 // Note the attribute must be registered in the converter list, used to retrieve the type of the attribute
 const Z_autoAttributeReporting_t Z_autoAttributeReporting[] PROGMEM = {
-  { 0x0001, 0x0020,    60*60, 4*60*60,  0.1 },      // BatteryVoltage
-  { 0x0001, 0x0021,    60*60, 4*60*60,    1 },      // BatteryPercentage
-  { 0x0006, 0x0000,        1,   60*60,    0 },      // Power
-  { 0x0201, 0x0000,       60,   60*10,  0.5 },      // LocalTemperature
-  { 0x0201, 0x0008,       60,   60*10,   10 },      // PIHeatingDemand
-  { 0x0201, 0x0012,       60,   60*10,  0.5 },      // OccupiedHeatingSetpoint
-  { 0x0008, 0x0000,        1,   60*60,    5 },      // Dimmer
-  { 0x0300, 0x0000,        1,   60*60,    5 },      // Hue
-  { 0x0300, 0x0001,        1,   60*60,    5 },      // Sat
-  { 0x0300, 0x0003,        1,   60*60,  100 },      // X
-  { 0x0300, 0x0004,        1,   60*60,  100 },      // Y
-  { 0x0300, 0x0007,        1,   60*60,    5 },      // CT
-  { 0x0300, 0x0008,        1,   60*60,    0 },      // ColorMode
-  { 0x0400, 0x0000,       10,   60*60,    5 },      // Illuminance (5 lux)
-  { 0x0402, 0x0000,       30,   60*60,  0.2 },      // Temperature (0.2 °C)
-  { 0x0403, 0x0000,       30,   60*60,    1 },      // Pressure (1 hPa)
-  { 0x0405, 0x0000,       30,   60*60,  1.0 },      // Humidity (1 %)
-  { 0x0406, 0x0000,       10,   60*60,    0 },      // Occupancy
-  { 0x0500, 0x0002,        1,   60*60,    0 },      // ZoneStatus
+  { 0x0001, 0x0020,    60*60, USE_ZIGBEE_MAXTIME_BATT,  USE_ZIGBEE_AUTOBIND_BATTVOLTAGE },      // BatteryVoltage
+  { 0x0001, 0x0021,    60*60, USE_ZIGBEE_MAXTIME_BATT,  USE_ZIGBEE_AUTOBIND_BATTPERCENT },      // BatteryPercentage
+  { 0x0006, 0x0000,        1,   USE_ZIGBEE_MAXTIME_LIGHT,    0 },      // Power
+  { 0x0201, 0x0000,       60,   USE_ZIGBEE_MAXTIME_TRV,  USE_ZIGBEE_AUTOBIND_TEMPERATURE },      // LocalTemperature
+  { 0x0201, 0x0008,       60,   USE_ZIGBEE_MAXTIME_TRV,  USE_ZIGBEE_AUTOBIND_HEATDEMAND  },      // PIHeatingDemand
+  { 0x0201, 0x0012,       60,   USE_ZIGBEE_MAXTIME_TRV,  USE_ZIGBEE_AUTOBIND_TEMPERATURE },      // OccupiedHeatingSetpoint
+  { 0x0008, 0x0000,        1,   USE_ZIGBEE_MAXTIME_LIGHT,    5 },      // Dimmer
+  { 0x0300, 0x0000,        1,   USE_ZIGBEE_MAXTIME_LIGHT,    5 },      // Hue
+  { 0x0300, 0x0001,        1,   USE_ZIGBEE_MAXTIME_LIGHT,    5 },      // Sat
+  { 0x0300, 0x0003,        1,   USE_ZIGBEE_MAXTIME_LIGHT,  100 },      // X
+  { 0x0300, 0x0004,        1,   USE_ZIGBEE_MAXTIME_LIGHT,  100 },      // Y
+  { 0x0300, 0x0007,        1,   USE_ZIGBEE_MAXTIME_LIGHT,    5 },      // CT
+  { 0x0300, 0x0008,        1,   USE_ZIGBEE_MAXTIME_LIGHT,    0 },      // ColorMode
+  { 0x0400, 0x0000,       10,   USE_ZIGBEE_MAXTIME_SENSOR,  USE_ZIGBEE_AUTOBIND_ILLUMINANCE },      // Illuminance (5 lux)
+  { 0x0402, 0x0000,       30,   USE_ZIGBEE_MAXTIME_SENSOR,  USE_ZIGBEE_AUTOBIND_TEMPERATURE },      // Temperature (0.2 °C)
+  { 0x0403, 0x0000,       30,   USE_ZIGBEE_MAXTIME_SENSOR,  USE_ZIGBEE_AUTOBIND_PRESSURE    },      // Pressure (1 hPa)
+  { 0x0405, 0x0000,       30,   USE_ZIGBEE_MAXTIME_SENSOR,  USE_ZIGBEE_AUTOBIND_HUMIDITY    },      // Humidity (1 %)
+  { 0x0406, 0x0000,       10,   USE_ZIGBEE_MAXTIME_SENSOR,    0 },      // Occupancy
+  { 0x0500, 0x0002,        1,   USE_ZIGBEE_MAXTIME_SENSOR,    0 },      // ZoneStatus
 };
 
 //
@@ -1535,7 +1549,7 @@ void Z_AutoConfigReportingForCluster(uint16_t shortaddr, uint16_t groupaddr, uin
           // encode value
           int32_t res = encodeSingleAttribute(buf, report_change, "", attr_type);
           if (res < 0) {
-            AddLog_P(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "internal error, unsupported attribute type"));
+            AddLog(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "internal error, unsupported attribute type"));
           } else {
             Z_attribute attr;
             attr.setKeyName(PSTR("ReportableChange"), true);    // true because in PMEM
@@ -1639,9 +1653,9 @@ void Z_IncomingMessage(class ZCLFrame &zcl_received) {
       zcl_received.parseResponse();   // Zigbee general "Default Response", publish ZbResponse message
   } else {
     // Build the ZbReceive list
-    if ( (!zcl_received.isClusterSpecificCommand()) && (ZCL_REPORT_ATTRIBUTES == zcl_received.getCmdId())) {
+    if ( (!zcl_received.isClusterSpecificCommand()) && (ZCL_REPORT_ATTRIBUTES == zcl_received.getCmdId() || ZCL_WRITE_ATTRIBUTES == zcl_received.getCmdId())) {
       zcl_received.parseReportAttributes(attr_list);    // Zigbee report attributes from sensors
-      if (clusterid) { defer_attributes = true; }  // don't defer system Cluster=0 messages
+      if (clusterid && (ZCL_REPORT_ATTRIBUTES == zcl_received.getCmdId())) { defer_attributes = true; }  // don't defer system Cluster=0 messages or Write Attribute
     } else if ( (!zcl_received.isClusterSpecificCommand()) && (ZCL_READ_ATTRIBUTES_RESPONSE == zcl_received.getCmdId())) {
       zcl_received.parseReadAttributesResponse(attr_list);
       if (clusterid) { defer_attributes = true; }  // don't defer system Cluster=0 messages
@@ -1662,7 +1676,7 @@ void Z_IncomingMessage(class ZCLFrame &zcl_received) {
 
     // discard the message if it was sent by us (broadcast or group loopback)
     if (srcaddr == localShortAddr) {
-      AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_ZIGBEE  "loopback message, ignoring"));
+      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_ZIGBEE  "loopback message, ignoring"));
       return;     // abort the rest of message management
     }
 

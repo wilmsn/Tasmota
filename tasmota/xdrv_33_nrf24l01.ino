@@ -1,7 +1,7 @@
 /*
   xdrv_33_nrf24l01.ino - nrf24l01 support for Tasmota
 
-  Copyright (C) 2020  Christian Baars and Theo Arends
+  Copyright (C) 2021  Christian Baars and Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -112,10 +112,10 @@ void NRF24Detect(void) {
   if (PinUsed(GPIO_NRF24_CS) && PinUsed(GPIO_NRF24_DC) && TasmotaGlobal.spi_enabled) {
     if (NRF24initRadio()) {
       NRF24.chipType = 32; // SPACE
-      AddLog_P(LOG_LEVEL_INFO, PSTR("NRF: Model 24L01 initialized"));
+      AddLog(LOG_LEVEL_INFO, PSTR("NRF: Model 24L01 initialized"));
       if (NRF24radio.isPVariant()) {
         NRF24.chipType = 43; // +
-        AddLog_P(LOG_LEVEL_INFO, PSTR("NRF: Model 24L01+ detected"));
+        AddLog(LOG_LEVEL_INFO, PSTR("NRF: Model 24L01+ detected"));
       }
     }
   }

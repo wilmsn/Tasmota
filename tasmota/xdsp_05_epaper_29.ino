@@ -1,7 +1,7 @@
 /*
   xdsp_05_epaper.ino - Display e-paper support for Tasmota
 
-  Copyright (C) 2020  Theo Arends, Gerhard Mutz and Waveshare
+  Copyright (C) 2021  Theo Arends, Gerhard Mutz and Waveshare
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -83,6 +83,7 @@ void EpdInitDriver29(void) {
 
 #ifdef SHOW_SPLASH
     // Welcome text
+    delay(100);
     renderer->setTextFont(1);
     renderer->DrawStringAt(50, 50, "Waveshare E-Paper Display!", COLORED,0);
     renderer->Updateframe();
@@ -91,7 +92,7 @@ void EpdInitDriver29(void) {
 #endif
 
     epd_init_done = true;
-    AddLog_P(LOG_LEVEL_INFO, PSTR("DSP: E-Paper 2.9"));
+    AddLog(LOG_LEVEL_INFO, PSTR("DSP: E-Paper 2.9"));
   }
 }
 
@@ -133,7 +134,7 @@ void EpdPrintLog29(void)
       renderer->DrawStringAt(0, epd_scroll, disp_screen_buffer[last_row], COLORED, 0);
 //      EpdDisplayFrame();
 
-      AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION "[%s]"), txt);
+      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION "[%s]"), txt);
     }
   }
 }

@@ -1,7 +1,7 @@
 /*
   xsns_39_MAX31865.ino - MAX31865 thermocouple sensor support for Tasmota
 
-  Copyright (C) 2020 Alberto Lopez Siemens
+  Copyright (C) 2021  Alberto Lopez Siemens
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -79,7 +79,7 @@ void MAX31865_GetResult(void) {
       rtd = max31865[i].readRTD();
       MAX31865_Result[i].Rtd = rtd;
       MAX31865_Result[i].PtdResistance = max31865[i].rtd_to_resistance(rtd, MAX31865_REF_RES);
-      MAX31865_Result[i].PtdTemp = max31865[i].rtd_to_temperature(rtd, MAX31865_PTD_RES, MAX31865_REF_RES) + MAX31865_PTD_BIAS;
+      MAX31865_Result[i].PtdTemp = ConvertTemp(max31865[i].rtd_to_temperature(rtd, MAX31865_PTD_RES, MAX31865_REF_RES) + MAX31865_PTD_BIAS);
     }
   }
 }

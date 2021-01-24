@@ -1,7 +1,7 @@
 /*
   xsns_80_mfrc522.ino - Support for MFRC522 (SPI) NFC Tag Reader on Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
  * Connections:
  * MFRC522  ESP8266         Tasmota
  * -------  --------------  ----------
- *  SDA     GPIO0..5,15,16  SPI CS
+ *  SDA     GPIO0..5,15,16  RC522 CS
  *  SCK     GPIO14          SPI CLK
  *  MOSI    GPIO13          SPI MOSI
  *  MISO    GPIO12          SPI MISO
@@ -113,7 +113,7 @@ void RC522Init(void) {
       }
       uint8_t empty_uid[4] = { 0 };
       ToHex_P((unsigned char*)empty_uid, sizeof(empty_uid), Rc522.uids, sizeof(Rc522.uids));
-      AddLog_P(LOG_LEVEL_INFO, PSTR("MFR: RC522 Rfid Reader detected %s"), ver);
+      AddLog(LOG_LEVEL_INFO, PSTR("MFR: RC522 Rfid Reader detected %s"), ver);
       Rc522.present = true;
 //    }
 //    Mfrc522->PCD_Init();       // Re-init as SelfTest blows init

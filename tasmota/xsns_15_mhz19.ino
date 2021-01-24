@@ -1,7 +1,7 @@
 /*
   xsns_15_mhz19.ino - MH-Z19(B) CO2 sensor support for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -200,17 +200,17 @@ void MhzEverySecond(void)
     AddLogBuffer(LOG_LEVEL_DEBUG_MORE, mhz_response, counter);
 
     if (counter < 9) {
-//      AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "MH-Z19 comms timeout"));
+//      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "MH-Z19 comms timeout"));
       return;
     }
 
     uint8_t crc = MhzCalculateChecksum(mhz_response);
     if (mhz_response[8] != crc) {
-//      AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "MH-Z19 crc error"));
+//      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "MH-Z19 crc error"));
       return;
     }
     if (0xFF != mhz_response[0] || 0x86 != mhz_response[1]) {
-//      AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "MH-Z19 bad response"));
+//      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "MH-Z19 bad response"));
       return;
     }
 

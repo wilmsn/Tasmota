@@ -1,7 +1,7 @@
 /*
   xdsp_05_epaper.ino - Display e-paper support for Tasmota
 
-  Copyright (C) 2020  Theo Arends, Gerhard Mutz and Waveshare
+  Copyright (C) 2021  Theo Arends, Gerhard Mutz and Waveshare
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -96,7 +96,7 @@ void EpdInitDriver42() {
 #endif
 
     epd42_init_done = true;
-    AddLog_P(LOG_LEVEL_INFO, PSTR("DSP: E-Paper 4.2"));
+    AddLog(LOG_LEVEL_INFO, PSTR("DSP: E-Paper 4.2"));
   }
 }
 

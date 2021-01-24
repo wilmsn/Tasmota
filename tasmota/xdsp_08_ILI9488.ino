@@ -1,7 +1,7 @@
 /*
   xdsp_08_ILI9488.ino - Display ILI9488 support for Tasmota
 
-  Copyright (C) 2020  Theo Arends, Gerhard Mutz
+  Copyright (C) 2021  Theo Arends, Gerhard Mutz
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ void ILI9488_InitDriver(void) {
 #endif
 
     ili9488_init_done = true;
-    AddLog_P(LOG_LEVEL_INFO, PSTR("DSP: ILI9488"));
+    AddLog(LOG_LEVEL_INFO, PSTR("DSP: ILI9488"));
   }
 }
 

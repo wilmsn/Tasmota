@@ -1,7 +1,7 @@
 /*
   xdrv_23_zigbee.ino - zigbee support for Tasmota
 
-  Copyright (C) 2020  Theo Arends and Stephan Hadinger
+  Copyright (C) 2021  Theo Arends and Stephan Hadinger
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -785,42 +785,42 @@ static const Zigbee_Instruction zb_prog[] PROGMEM = {
     ZI_WAIT_UNTIL(5000, ZBR_RSTACK)     // wait for RSTACK message
 
     // Init device and probe version
-    ZI_SEND(ZBS_VERSION)                ZI_WAIT_RECV_FUNC(1000, ZBR_VERSION, &EZ_ReceiveCheckVersion)       // check EXT PAN ID
+    ZI_SEND(ZBS_VERSION)                ZI_WAIT_RECV_FUNC(5000, ZBR_VERSION, &EZ_ReceiveCheckVersion)       // check EXT PAN ID
 
     // configure EFR32
     ZI_MQTT_STATE(ZIGBEE_STATUS_STARTING, kConfiguredCoord)
-    ZI_SEND(ZBS_SET_ADDR_TABLE)         ZI_WAIT_RECV(500, ZBR_SET_OK)      // Address table size
-    ZI_SEND(ZBS_SET_MCAST_TABLE)        ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_STK_PROF)           ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_SEC_LEVEL)          ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_MAX_DEVICES)        ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_INDIRECT_TMO)       ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_TC_CACHE)           ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_ROUTE_TBL)          ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_KEY_TBL)            ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_PANID_CNFLCT)       ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_ZDO_REQ)            ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_NETWORKS)           ZI_WAIT_RECV(500, ZBR_SET_OK)
-    ZI_SEND(ZBS_SET_PACKET_BUF)         ZI_WAIT_RECV(500, ZBR_SET_OK2)
+    ZI_SEND(ZBS_SET_ADDR_TABLE)         ZI_WAIT_RECV(2500, ZBR_SET_OK)      // Address table size
+    ZI_SEND(ZBS_SET_MCAST_TABLE)        ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_STK_PROF)           ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_SEC_LEVEL)          ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_MAX_DEVICES)        ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_INDIRECT_TMO)       ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_TC_CACHE)           ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_ROUTE_TBL)          ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_KEY_TBL)            ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_PANID_CNFLCT)       ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_ZDO_REQ)            ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_NETWORKS)           ZI_WAIT_RECV(2500, ZBR_SET_OK)
+    ZI_SEND(ZBS_SET_PACKET_BUF)         ZI_WAIT_RECV(2500, ZBR_SET_OK2)
 
     // read configuration
     // TODO - not sure it's useful
-    //ZI_SEND(ZBS_GET_APS_UNI)            ZI_WAIT_RECV_FUNC(500, ZBR_GET_OK, &EZ_ReadAPSUnicastMessage)
+    //ZI_SEND(ZBS_GET_APS_UNI)            ZI_WAIT_RECV_FUNC(2500, ZBR_GET_OK, &EZ_ReadAPSUnicastMessage)
 
     // add endpoint 0x01 and 0x0B
-    ZI_SEND(ZBS_ADD_ENDPOINT1)          ZI_WAIT_RECV(500, ZBR_ADD_ENDPOINT)
-    ZI_SEND(ZBS_ADD_ENDPOINTB)          ZI_WAIT_RECV(500, ZBR_ADD_ENDPOINT)
+    ZI_SEND(ZBS_ADD_ENDPOINT1)          ZI_WAIT_RECV(2500, ZBR_ADD_ENDPOINT)
+    ZI_SEND(ZBS_ADD_ENDPOINTB)          ZI_WAIT_RECV(2500, ZBR_ADD_ENDPOINT)
 
     // set Concentrator
-    ZI_SEND(ZBS_SET_CONCENTRATOR)       ZI_WAIT_RECV(500, ZBR_SET_CONCENTRATOR)
+    ZI_SEND(ZBS_SET_CONCENTRATOR)       ZI_WAIT_RECV(2500, ZBR_SET_CONCENTRATOR)
 
     // setInitialSecurityState
-    ZI_SEND(ZBS_SET_POLICY_00)          ZI_WAIT_RECV(500, ZBR_SET_POLICY_XX)
-    ZI_SEND(ZBS_SET_POLICY_02)          ZI_WAIT_RECV(500, ZBR_SET_POLICY_XX)
-    ZI_SEND(ZBS_SET_POLICY_03)          ZI_WAIT_RECV(500, ZBR_SET_POLICY_XX)
-    // ZI_SEND(ZBS_SET_POLICY_04)          ZI_WAIT_RECV(500, ZBR_SET_POLICY_XX)
-    ZI_SEND(ZBS_SET_POLICY_05)          ZI_WAIT_RECV(500, ZBR_SET_POLICY_XX)
-    ZI_SEND(ZBS_SET_POLICY_06)          ZI_WAIT_RECV(500, ZBR_SET_POLICY_XX)
+    ZI_SEND(ZBS_SET_POLICY_00)          ZI_WAIT_RECV(2500, ZBR_SET_POLICY_XX)
+    ZI_SEND(ZBS_SET_POLICY_02)          ZI_WAIT_RECV(2500, ZBR_SET_POLICY_XX)
+    ZI_SEND(ZBS_SET_POLICY_03)          ZI_WAIT_RECV(2500, ZBR_SET_POLICY_XX)
+    // ZI_SEND(ZBS_SET_POLICY_04)          ZI_WAIT_RECV(2500, ZBR_SET_POLICY_XX)
+    ZI_SEND(ZBS_SET_POLICY_05)          ZI_WAIT_RECV(2500, ZBR_SET_POLICY_XX)
+    ZI_SEND(ZBS_SET_POLICY_06)          ZI_WAIT_RECV(2500, ZBR_SET_POLICY_XX)
 
     // Decide whether we try 'networkInit()' to restore configuration, or create a new network
     ZI_CALL(&EZ_GotoIfResetConfig, ZIGBEE_LABEL_CONFIGURE_EZSP)    // goto ZIGBEE_LABEL_CONFIGURE_EZSP if reset_config is set
@@ -830,12 +830,12 @@ static const Zigbee_Instruction zb_prog[] PROGMEM = {
     // Try networkInit to restore settings, and check if network comes up
     ZI_ON_TIMEOUT_GOTO(ZIGBEE_LABEL_BAD_CONFIG)    //
     ZI_ON_ERROR_GOTO(ZIGBEE_LABEL_BAD_CONFIG)
-    ZI_SEND(ZBS_NETWORK_INIT)           ZI_WAIT_RECV(500, ZBR_NETWORK_INIT)
+    ZI_SEND(ZBS_NETWORK_INIT)           ZI_WAIT_RECV(2500, ZBR_NETWORK_INIT)
     ZI_WAIT_RECV(1500, ZBR_NETWORK_UP)    // wait for network to start
     // check if configuration is ok
-    ZI_SEND(ZBS_GET_KEY_NWK)            ZI_WAIT_RECV_FUNC(500, ZBR_GET_KEY_NWK, &EZ_CheckKeyNWK)
-    ZI_SEND(ZBS_GET_EUI64)              ZI_WAIT_RECV_FUNC(500, ZBR_GET_EUI64, &EZ_GetEUI64)
-    ZI_SEND(ZBS_GET_NETW_PARM)          ZI_WAIT_RECV_FUNC(500, ZBR_CHECK_NETW_PARM, &EZ_NetworkParameters)
+    ZI_SEND(ZBS_GET_KEY_NWK)            ZI_WAIT_RECV_FUNC(2500, ZBR_GET_KEY_NWK, &EZ_CheckKeyNWK)
+    ZI_SEND(ZBS_GET_EUI64)              ZI_WAIT_RECV_FUNC(2500, ZBR_GET_EUI64, &EZ_GetEUI64)
+    ZI_SEND(ZBS_GET_NETW_PARM)          ZI_WAIT_RECV_FUNC(2500, ZBR_CHECK_NETW_PARM, &EZ_NetworkParameters)
 
     // all ok, proceed to next step
     ZI_GOTO(ZIGBEE_LABEL_NETWORK_CONFIGURED)
@@ -851,9 +851,9 @@ static const Zigbee_Instruction zb_prog[] PROGMEM = {
     ZI_ON_TIMEOUT_GOTO(ZIGBEE_LABEL_ABORT)
     ZI_ON_ERROR_GOTO(ZIGBEE_LABEL_ABORT)
     // set encryption keys
-    ZI_SEND(ZBS_SET_SECURITY)           ZI_WAIT_RECV(500, ZBR_SET_SECURITY)
+    ZI_SEND(ZBS_SET_SECURITY)           ZI_WAIT_RECV(2500, ZBR_SET_SECURITY)
     // formNetwork
-    ZI_SEND(ZBS_FORM_NETWORK)           ZI_WAIT_RECV(500, ZBR_FORM_NETWORK)
+    ZI_SEND(ZBS_FORM_NETWORK)           ZI_WAIT_RECV(2500, ZBR_FORM_NETWORK)
     ZI_WAIT_RECV(5000, ZBR_NETWORK_UP)    // wait for network to start
 
   ZI_LABEL(ZIGBEE_LABEL_NETWORK_CONFIGURED)
@@ -861,11 +861,11 @@ static const Zigbee_Instruction zb_prog[] PROGMEM = {
     ZI_ON_TIMEOUT_GOTO(ZIGBEE_LABEL_ABORT)
     ZI_ON_ERROR_GOTO(ZIGBEE_LABEL_ABORT)
     // Query device information
-    ZI_SEND(ZBS_GET_EUI64)              ZI_WAIT_RECV_FUNC(500, ZBR_GET_EUI64, &EZ_GetEUI64)
-    ZI_SEND(ZBS_GET_NODEID)             ZI_WAIT_RECV_FUNC(500, ZBR_GET_NODEID, &EZ_GetNodeId)
+    ZI_SEND(ZBS_GET_EUI64)              ZI_WAIT_RECV_FUNC(2500, ZBR_GET_EUI64, &EZ_GetEUI64)
+    ZI_SEND(ZBS_GET_NODEID)             ZI_WAIT_RECV_FUNC(2500, ZBR_GET_NODEID, &EZ_GetNodeId)
     // auto-register multicast group 0x0000
     ZI_LOG(LOG_LEVEL_INFO, kZigbeeGroup0)
-    ZI_SEND(ZBS_SET_MCAST_ENTRY)        ZI_WAIT_RECV(500, ZBR_SET_MCAST_ENTRY)
+    ZI_SEND(ZBS_SET_MCAST_ENTRY)        ZI_WAIT_RECV(2500, ZBR_SET_MCAST_ENTRY)
 
   // ZI_LABEL(ZIGBEE_LABEL_READY)
     ZI_MQTT_STATE(ZIGBEE_STATUS_OK, kStarted)
@@ -932,12 +932,12 @@ void ZigbeeGotoLabel(uint8_t label) {
   }
 
   // no label found, abort
-  AddLog_P(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Goto label not found, label=%d pc=%d"), label, zigbee.pc);
+  AddLog(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Goto label not found, label=%d pc=%d"), label, zigbee.pc);
   if (ZIGBEE_LABEL_ABORT != label) {
     // if not already looking for ZIGBEE_LABEL_ABORT, goto ZIGBEE_LABEL_ABORT
     ZigbeeGotoLabel(ZIGBEE_LABEL_ABORT);
   } else {
-    AddLog_P(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Label Abort (%d) not present, aborting Zigbee"), ZIGBEE_LABEL_ABORT);
+    AddLog(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Label Abort (%d) not present, aborting Zigbee"), ZIGBEE_LABEL_ABORT);
     zigbee.state_machine = false;
     zigbee.active = false;
   }
@@ -955,7 +955,7 @@ void ZigbeeStateMachine_Run(void) {
     // checking if timeout expired
     if ((zigbee.next_timeout) && (now > zigbee.next_timeout)) {    // if next_timeout == 0 then wait forever
       if (!zigbee.state_no_timeout) {
-        AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "timeout, goto label %d"), zigbee.on_timeout_goto);
+        AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "timeout, goto label %d"), zigbee.on_timeout_goto);
         ZigbeeGotoLabel(zigbee.on_timeout_goto);
       } else {
         zigbee.state_waiting = false;     // simply stop waiting
@@ -971,7 +971,7 @@ void ZigbeeStateMachine_Run(void) {
     zigbee.state_no_timeout = false;   // reset the no_timeout for next instruction
 
     if (zigbee.pc > ARRAY_SIZE(zb_prog)) {
-      AddLog_P(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Invalid pc: %d, aborting"), zigbee.pc);
+      AddLog(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Invalid pc: %d, aborting"), zigbee.pc);
       zigbee.pc = -1;
     }
     if (zigbee.pc < 0) {
@@ -1020,7 +1020,7 @@ void ZigbeeStateMachine_Run(void) {
       case ZGB_INSTR_STOP:
         zigbee.state_machine = false;
         if (cur_d8) {
-          AddLog_P(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Stopping (%d)"), cur_d8);
+          AddLog(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Stopping (%d)"), cur_d8);
         }
         break;
       case ZGB_INSTR_CALL:

@@ -1,7 +1,7 @@
 /*
   xdrv_81_webcam.ino - ESP32 webcam support for Tasmota
 
-  Copyright (C) 2020  Gerhard Mutz and Theo Arends
+  Copyright (C) 2021  Gerhard Mutz and Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
  * Odroid Go
  *
  * Clock frequency 160MHz (board_build.f_cpu       = 160000000L)
- * SPI Flash Size = 16MB (board_build.partitions  = esp32_partition_app1984k_ffat12M.csv)
+ * SPI Flash Size = 16MB (board_build.partitions  = esp32_partition_app1984k_spiffs12M.csv)
  *
  * To be done:
  * - Audio on GPIO25/26

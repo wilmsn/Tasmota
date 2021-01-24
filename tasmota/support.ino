@@ -1,7 +1,7 @@
 /*
   support.ino - support for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -49,17 +49,17 @@ void OsWatchTicker(void)
 
 #ifdef DEBUG_THEO
   int32_t rssi = WiFi.RSSI();
-  AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION D_OSWATCH " FreeRam %d, rssi %d %% (%d dBm), last_run %d"), ESP_getFreeHeap(), WifiGetRssiAsQuality(rssi), rssi, last_run);
+  AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION D_OSWATCH " FreeRam %d, rssi %d %% (%d dBm), last_run %d"), ESP_getFreeHeap(), WifiGetRssiAsQuality(rssi), rssi, last_run);
 #endif  // DEBUG_THEO
   if (last_run >= (OSWATCH_RESET_TIME * 1000)) {
-//    AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_OSWATCH " " D_BLOCKED_LOOP ". " D_RESTARTING));  // Save iram space
+//    AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_OSWATCH " " D_BLOCKED_LOOP ". " D_RESTARTING));  // Save iram space
     RtcSettings.oswatch_blocked_loop = 1;
     RtcSettingsSave();
 
 //    ESP.restart();  // normal reboot
 //    ESP.reset();  // hard reset
-
     // Force an exception to get a stackdump
+    // ESP32: Guru Meditation Error: Core  0 panic'ed (LoadProhibited). Exception was unhandled.
     volatile uint32_t dummy;
     dummy = *((uint32_t*) 0x00000000);
     (void)dummy;    // avoid compiler warning
@@ -110,6 +110,97 @@ String GetResetReason(void)
     return ESP_getResetReason();
   }
 }
+
+#ifdef ESP32
+/*********************************************************************************************\
+ * ESP32 AutoMutex
+\*********************************************************************************************/
+
+//////////////////////////////////////////
+// automutex.
+// create a mute in your driver with:
+// void *mutex = nullptr;
+//
+// then protect any function with
+// TasAutoMutex m(&mutex, "somename");
+// - mutex is automatically initialised if not already intialised.
+// - it will be automagically released when the function is over.
+// - the same thread can take multiple times (recursive).
+// - advanced options m.give() and m.take() allow you fine control within a function.
+// - if take=false at creat, it will not be initially taken.
+// - name is used in serial log of mutex deadlock.
+// - maxWait in ticks is how long it will wait before failing in a deadlock scenario (and then emitting on serial)
+class TasAutoMutex {
+  SemaphoreHandle_t mutex;
+  bool taken;
+  int maxWait;
+  const char *name;
+  public:
+    TasAutoMutex(void ** mutex, const char *name = "", int maxWait = 40, bool take=true);
+    ~TasAutoMutex();
+    void give();
+    void take();
+    static void init(void ** ptr);
+};
+//////////////////////////////////////////
+
+TasAutoMutex::TasAutoMutex(void **mutex, const char *name, int maxWait, bool take) {
+  if (mutex) {
+    if (!(*mutex)){
+      TasAutoMutex::init(mutex);
+    }
+    this->mutex = (SemaphoreHandle_t)*mutex;
+    this->maxWait = maxWait;
+    this->name = name;
+    if (take) {
+      this->taken = xSemaphoreTakeRecursive(this->mutex, this->maxWait);
+      if (!this->taken){
+        Serial.printf("\r\nMutexfail %s\r\n", this->name);
+      }
+    }
+  } else {
+    this->mutex = (SemaphoreHandle_t)nullptr;
+  }
+}
+
+TasAutoMutex::~TasAutoMutex() {
+  if (this->mutex) {
+    if (this->taken) {
+      xSemaphoreGiveRecursive(this->mutex);
+      this->taken = false;
+    }
+  }
+}
+
+void TasAutoMutex::init(void ** ptr) {
+  SemaphoreHandle_t mutex = xSemaphoreCreateRecursiveMutex();
+  (*ptr) = (void *) mutex;
+  // needed, else for ESP8266 as we will initialis more than once in logging
+//  (*ptr) = (void *) 1;
+}
+
+void TasAutoMutex::give() {
+  if (this->mutex) {
+    if (this->taken) {
+      xSemaphoreGiveRecursive(this->mutex);
+      this->taken= false;
+    }
+  }
+}
+
+void TasAutoMutex::take() {
+  if (this->mutex) {
+    if (!this->taken) {
+      this->taken = xSemaphoreTakeRecursive(this->mutex, this->maxWait);
+      if (!this->taken){
+        Serial.printf("\r\nMutexfail %s\r\n", this->name);
+      }
+    }
+  }
+}
+
+#endif  // ESP32
+
 
 /*********************************************************************************************\
  * Miscellaneous
@@ -293,7 +384,7 @@ char* Uint64toHex(uint64_t value, char *str, uint16_t bits)
 char* dtostrfd(double number, unsigned char prec, char *s)
 {
   if ((isnan(number)) || (isinf(number))) {  // Fix for JSON output (https://stackoverflow.com/questions/1423081/json-left-out-infinity-and-nan-json-status-in-ecmascript)
-    strcpy(s, "null");
+    strcpy_P(s, PSTR("null"));
     return s;
   } else {
     return dtostrf(number, 1, prec, s);
@@ -458,6 +549,38 @@ char* Trim(char* p)
   return p;
 }
 
+String UrlEncode(const String& text) {
+  const char hex[] = "0123456789ABCDEF";
+
+	String encoded = "";
+	int len = text.length();
+	int i = 0;
+	while (i < len)	{
+		char decodedChar = text.charAt(i++);
+/*
+    if (('a' <= decodedChar && decodedChar <= 'z') ||
+        ('A' <= decodedChar && decodedChar <= 'Z') ||
+        ('0' <= decodedChar && decodedChar <= '9') ||
+        ('=' == decodedChar)) {
+      encoded += decodedChar;
+		} else {
+      encoded += '%';
+			encoded += hex[decodedChar >> 4];
+			encoded += hex[decodedChar & 0xF];
+    }
+*/
+    if ((' ' == decodedChar) || ('+' == decodedChar)) {
+      encoded += '%';
+			encoded += hex[decodedChar >> 4];
+			encoded += hex[decodedChar & 0xF];
+    } else {
+      encoded += decodedChar;
+    }
+
+	}
+	return encoded;
+}
+
 /*
 char* RemoveAllSpaces(char* p)
 {
@@ -532,16 +655,18 @@ uint8_t Shortcut(void)
 
 bool ValidIpAddress(const char* str)
 {
-  const char* p = str;
-
-  while (*p && ((*p == '.') || ((*p >= '0') && (*p <= '9')))) { p++; }
-  return (*p == '\0');
+  IPAddress ip_address;
+  return ip_address.fromString(str);
 }
 
-bool ParseIp(uint32_t* addr, const char* str)
+
+bool ParseIPv4(uint32_t* addr, const char* str_p)
 {
   uint8_t *part = (uint8_t*)addr;
   uint8_t i;
+  char str_r[strlen_P(str_p)+1];
+  char * str = &str_r[0];
+  strcpy_P(str, str_p);
 
   *addr = 0;
   for (i = 0; i < 4; i++) {
@@ -738,7 +863,7 @@ float ConvertPressureForSeaLevel(float pressure)
 
 String PressureUnit(void)
 {
-  return (Settings.flag.pressure_conversion) ? String(D_UNIT_MILLIMETER_MERCURY) : String(D_UNIT_PRESSURE);
+  return (Settings.flag.pressure_conversion) ? String(F(D_UNIT_MILLIMETER_MERCURY)) : String(F(D_UNIT_PRESSURE));
 }
 
 float ConvertSpeed(float s)
@@ -901,11 +1026,11 @@ String GetSerialConfig(void) {
   // b00000x00 - 1 or 2 stop bits
   // b000xx000 - None, Even or Odd parity
 
-  const char kParity[] = "NEOI";
+  const static char kParity[] PROGMEM = "NEOI";
 
   char config[4];
   config[0] = '5' + (Settings.serial_config & 0x3);
-  config[1] = kParity[(Settings.serial_config >> 3) & 0x3];
+  config[1] = pgm_read_byte(&kParity[(Settings.serial_config >> 3) & 0x3]);
   config[2] = '1' + ((Settings.serial_config >> 2) & 0x1);
   config[3] = '\0';
   return String(config);
@@ -917,7 +1042,7 @@ uint32_t GetSerialBaudrate(void) {
 
 void SetSerialBegin(void) {
   TasmotaGlobal.baudrate = Settings.baudrate * 300;
-  AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_SERIAL "Set to %s %d bit/s"), GetSerialConfig().c_str(), TasmotaGlobal.baudrate);
+  AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_SERIAL "Set to %s %d bit/s"), GetSerialConfig().c_str(), TasmotaGlobal.baudrate);
   Serial.flush();
 #ifdef ESP8266
   Serial.begin(TasmotaGlobal.baudrate, (SerialConfig)pgm_read_byte(kTasmotaSerialConfig + Settings.serial_config));
@@ -960,7 +1085,7 @@ void SetSerial(uint32_t baudrate, uint32_t serial_config) {
 
 void ClaimSerial(void) {
   TasmotaGlobal.serial_local = true;
-  AddLog_P(LOG_LEVEL_INFO, PSTR("SNS: Hardware Serial"));
+  AddLog(LOG_LEVEL_INFO, PSTR("SNS: Hardware Serial"));
   SetSeriallog(LOG_LEVEL_NONE);
   TasmotaGlobal.baudrate = GetSerialBaudrate();
   Settings.baudrate = TasmotaGlobal.baudrate / 300;
@@ -1007,7 +1132,7 @@ void ShowSource(uint32_t source)
 {
   if ((source > 0) && (source < SRC_MAX)) {
     char stemp1[20];
-    AddLog_P(LOG_LEVEL_DEBUG, PSTR("SRC: %s"), GetTextIndexed(stemp1, sizeof(stemp1), source, kCommandSource));
+    AddLog(LOG_LEVEL_DEBUG, PSTR("SRC: %s"), GetTextIndexed(stemp1, sizeof(stemp1), source, kCommandSource));
   }
 }
 
@@ -1196,7 +1321,7 @@ void TemplateConvert(uint8_t template8[], uint16_t template16[]) {
   }
   template16[(sizeof(mytmplt) / 2) -2] = Adc0Convert(template8[sizeof(mytmplt8285) -1]);
 
-//  AddLog_P(LOG_LEVEL_DEBUG, PSTR("FNC: TemplateConvert"));
+//  AddLog(LOG_LEVEL_DEBUG, PSTR("FNC: TemplateConvert"));
 //  AddLogBuffer(LOG_LEVEL_DEBUG, template8, sizeof(mytmplt8285));
 //  AddLogBufferSize(LOG_LEVEL_DEBUG, (uint8_t*)template16, sizeof(mytmplt) / 2, 2);
 }
@@ -1212,7 +1337,7 @@ void ConvertGpios(void) {
     Settings.my_gp.io[(sizeof(myio) / 2) -1] = Adc0Convert(Settings.ex_my_adc0);
     Settings.gpio16_converted = 0xF5A0;
 
-//    AddLog_P(LOG_LEVEL_DEBUG, PSTR("FNC: ConvertGpios"));
+//    AddLog(LOG_LEVEL_DEBUG, PSTR("FNC: ConvertGpios"));
 //    AddLogBuffer(LOG_LEVEL_DEBUG, (uint8_t *)&Settings.ex_my_gp8.io, sizeof(myio8));
 //    AddLogBufferSize(LOG_LEVEL_DEBUG, (uint8_t *)&Settings.my_gp.io, sizeof(myio) / 2, 2);
   }
@@ -1230,7 +1355,7 @@ void DumpConvertTable(void) {
       ResponseAppend_P(PSTR(","));
     }
     jsflg = true;
-    if ((ResponseAppend_P(PSTR("\"%d\":\"%d\""), i, data) > (LOGSZ - TOPSZ)) || (i == ARRAY_SIZE(kGpioConvert) -1)) {
+    if ((ResponseAppend_P(PSTR("\"%d\":\"%d\""), i, data) > (MAX_LOGSZ - TOPSZ)) || (i == ARRAY_SIZE(kGpioConvert) -1)) {
       ResponseJsonEndEnd();
       MqttPublishPrefixTopic_P(RESULT_OR_STAT, XdrvMailbox.command);
       jsflg = false;
@@ -1245,7 +1370,7 @@ void DumpConvertTable(void) {
       ResponseAppend_P(PSTR(","));
     }
     jsflg = true;
-    if ((ResponseAppend_P(PSTR("\"%d\":\"%d\""), i, data) > (LOGSZ - TOPSZ)) || (i == ARRAY_SIZE(kAdcNiceList) -1)) {
+    if ((ResponseAppend_P(PSTR("\"%d\":\"%d\""), i, data) > (MAX_LOGSZ - TOPSZ)) || (i == ARRAY_SIZE(kAdcNiceList) -1)) {
       ResponseJsonEndEnd();
       MqttPublishPrefixTopic_P(RESULT_OR_STAT, XdrvMailbox.command);
       jsflg = false;
@@ -1363,7 +1488,7 @@ String ModuleName(void)
 void GetInternalTemplate(void* ptr, uint32_t module, uint32_t option) {
   uint8_t module_template = pgm_read_byte(kModuleTemplateList + module);
 
-//  AddLog_P(LOG_LEVEL_DEBUG, PSTR("DBG: Template %d, Option %d"), module_template, option);
+//  AddLog(LOG_LEVEL_DEBUG, PSTR("DBG: Template %d, Option %d"), module_template, option);
 
   // template8 = GPIO 0,1,2,3,4,5,9,10,12,13,14,15,16,Adc
   uint8_t template8[sizeof(mytmplt8285)] = { GPIO_NONE };
@@ -1395,7 +1520,7 @@ void GetInternalTemplate(void* ptr, uint32_t module, uint32_t option) {
   }
   memcpy(ptr, &template16[index], size);
 
-//  AddLog_P(LOG_LEVEL_DEBUG, PSTR("FNC: GetInternalTemplate option %d"), option);
+//  AddLog(LOG_LEVEL_DEBUG, PSTR("FNC: GetInternalTemplate option %d"), option);
 //  AddLogBufferSize(LOG_LEVEL_DEBUG, (uint8_t *)ptr, size / 2, 2);
 }
 #endif  // ESP8266
@@ -1503,12 +1628,11 @@ bool ValidGPIO(uint32_t pin, uint32_t gpio) {
   return (GPIO_USER == ValidPin(pin, BGPIO(gpio)));  // Only allow GPIO_USER pins
 }
 
-bool ValidSpiGPIO(uint32_t gpio) {
+bool ValidSpiPinUsed(uint32_t gpio) {
   // ESP8266: If SPI pin selected chk if it's not one of the three Hardware SPI pins (12..14)
-  bool result = true;  // Not used and therefore valid
-  uint32_t pin;
+  bool result = false;
   if (PinUsed(gpio)) {
-    pin = Pin(gpio);
+    uint32_t pin = Pin(gpio);
     result = ((pin < 12) || (pin > 14));
   }
   return result;
@@ -1550,7 +1674,7 @@ bool JsonTemplate(char* dataBuf)
     }
     if (old_template) {
 
-      AddLog_P(LOG_LEVEL_DEBUG, PSTR("TPL: Converting template ..."));
+      AddLog(LOG_LEVEL_DEBUG, PSTR("TPL: Converting template ..."));
 
       val = root[PSTR(D_JSON_FLAG)];
       if (val) {
@@ -1584,7 +1708,7 @@ bool JsonTemplate(char* dataBuf)
     Settings.user_template_base = base -1;  // Default WEMOS
   }
 
-//  AddLog_P(LOG_LEVEL_DEBUG, PSTR("TPL: Converted"));
+//  AddLog(LOG_LEVEL_DEBUG, PSTR("TPL: Converted"));
 //  AddLogBufferSize(LOG_LEVEL_DEBUG, (uint8_t*)&Settings.user_template, sizeof(Settings.user_template) / 2, 2);
 
   return true;
@@ -1592,7 +1716,7 @@ bool JsonTemplate(char* dataBuf)
 
 void TemplateJson(void)
 {
-//  AddLog_P(LOG_LEVEL_DEBUG, PSTR("TPL: Show"));
+//  AddLog(LOG_LEVEL_DEBUG, PSTR("TPL: Show"));
 //  AddLogBufferSize(LOG_LEVEL_DEBUG, (uint8_t*)&Settings.user_template, sizeof(Settings.user_template) / 2, 2);
 
   Response_P(PSTR("{\"" D_JSON_NAME "\":\"%s\",\"" D_JSON_GPIO "\":["), SettingsText(SET_TEMPLATE_NAME));
@@ -1865,7 +1989,7 @@ void I2cResetActive(uint32_t addr, uint32_t count = 1)
     i2c_active[addr / 32] &= ~(1 << (addr % 32));
     addr++;
   }
-//  AddLog_P(LOG_LEVEL_DEBUG, PSTR("I2C: Active %08X,%08X,%08X,%08X"), i2c_active[0], i2c_active[1], i2c_active[2], i2c_active[3]);
+//  AddLog(LOG_LEVEL_DEBUG, PSTR("I2C: Active %08X,%08X,%08X,%08X"), i2c_active[0], i2c_active[1], i2c_active[2], i2c_active[3]);
 }
 
 void I2cSetActive(uint32_t addr, uint32_t count = 1)
@@ -1876,13 +2000,13 @@ void I2cSetActive(uint32_t addr, uint32_t count = 1)
     i2c_active[addr / 32] |= (1 << (addr % 32));
     addr++;
   }
-//  AddLog_P(LOG_LEVEL_DEBUG, PSTR("I2C: Active %08X,%08X,%08X,%08X"), i2c_active[0], i2c_active[1], i2c_active[2], i2c_active[3]);
+//  AddLog(LOG_LEVEL_DEBUG, PSTR("I2C: Active %08X,%08X,%08X,%08X"), i2c_active[0], i2c_active[1], i2c_active[2], i2c_active[3]);
 }
 
 void I2cSetActiveFound(uint32_t addr, const char *types)
 {
   I2cSetActive(addr);
-  AddLog_P(LOG_LEVEL_INFO, S_LOG_I2C_FOUND_AT, types, addr);
+  AddLog(LOG_LEVEL_INFO, S_LOG_I2C_FOUND_AT, types, addr);
 }
 
 bool I2cActive(uint32_t addr)
@@ -1909,7 +2033,7 @@ bool I2cSetDevice(uint32_t addr)
  * Syslog
  *
  * Example:
- *   AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_LOG "Any value %d"), value);
+ *   AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_LOG "Any value %d"), value);
  *
 \*********************************************************************************************/
 
@@ -1950,7 +2074,7 @@ void SyslogAsync(bool refresh) {
       if (!PortUdp.beginPacket(syslog_host_addr, Settings.syslog_port)) {
         TasmotaGlobal.syslog_level = 0;
         TasmotaGlobal.syslog_timer = SYSLOG_TIMER;
-        AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_SYSLOG_HOST_NOT_FOUND ". " D_RETRY_IN " %d " D_UNIT_SECOND), SYSLOG_TIMER);
+        AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_SYSLOG_HOST_NOT_FOUND ". " D_RETRY_IN " %d " D_UNIT_SECOND), SYSLOG_TIMER);
         return;
       }
       char log_data[len +72];            // Hostname + Id + log data
@@ -1967,8 +2091,15 @@ void SyslogAsync(bool refresh) {
 }
 
 bool NeedLogRefresh(uint32_t req_loglevel, uint32_t index) {
+
+#ifdef ESP32
+  // this takes the mutex, and will be release when the class is destroyed -
+  // i.e. when the functon leaves  You CAN call mutex.give() to leave early.
+  TasAutoMutex mutex(&TasmotaGlobal.log_buffer_mutex);
+#endif  // ESP32
+
   // Skip initial buffer fill
-  if (strlen(TasmotaGlobal.log_buffer) < LOG_BUFFER_SIZE - LOGSZ) { return false; }
+  if (strlen(TasmotaGlobal.log_buffer) < LOG_BUFFER_SIZE - MAX_LOGSZ) { return false; }
 
   char* line;
   size_t len;
@@ -1981,6 +2112,12 @@ bool GetLog(uint32_t req_loglevel, uint32_t* index_p, char** entry_pp, size_t* l
 
   if (TasmotaGlobal.uptime < 3) { return false; }  // Allow time to setup correct log level
   if (!req_loglevel || (index == TasmotaGlobal.log_buffer_pointer)) { return false; }
+
+#ifdef ESP32
+  // this takes the mutex, and will be release when the class is destroyed -
+  // i.e. when the functon leaves  You CAN call mutex.give() to leave early.
+  TasAutoMutex mutex(&TasmotaGlobal.log_buffer_mutex);
+#endif  // ESP32
 
   if (!index) {                            // Dump all
     index = TasmotaGlobal.log_buffer_pointer +1;
@@ -2020,6 +2157,13 @@ bool GetLog(uint32_t req_loglevel, uint32_t* index_p, char** entry_pp, size_t* l
 }
 
 void AddLogData(uint32_t loglevel, const char* log_data) {
+
+#ifdef ESP32
+  // this takes the mutex, and will be release when the class is destroyed -
+  // i.e. when the functon leaves  You CAN call mutex.give() to leave early.
+  TasAutoMutex mutex(&TasmotaGlobal.log_buffer_mutex);
+#endif  // ESP32
+
   char mxtime[14];  // "13:45:21.999 "
   snprintf_P(mxtime, sizeof(mxtime), PSTR("%02d" D_HOUR_MINUTE_SEPARATOR "%02d" D_MINUTE_SECOND_SEPARATOR "%02d.%03d "), RtcTime.hour, RtcTime.minute, RtcTime.second, RtcMillis());
 
@@ -2060,13 +2204,35 @@ void AddLogData(uint32_t loglevel, const char* log_data) {
   }
 }
 
-void AddLog_P(uint32_t loglevel, PGM_P formatP, ...)
-{
-  char log_data[LOGSZ];
+void AddLog(uint32_t loglevel, PGM_P formatP, ...) {
+  // To save stack space support logging for max text length of 128 characters
+  char log_data[LOGSZ +4];
 
   va_list arg;
   va_start(arg, formatP);
-  vsnprintf_P(log_data, sizeof(log_data), formatP, arg);
+  uint32_t len = vsnprintf_P(log_data, LOGSZ +1, formatP, arg);
+  va_end(arg);
+  if (len > LOGSZ) { strcat(log_data, "..."); }  // Actual data is more
+
+#ifdef DEBUG_TASMOTA_CORE
+  // Profile max_len
+  static uint32_t max_len = 0;
+  if (len > max_len) {
+    max_len = len;
+    Serial.printf("PRF: AddLog %d\n", max_len);
+  }
+#endif
+
+  AddLogData(loglevel, log_data);
+}
+
+void AddLog_P(uint32_t loglevel, PGM_P formatP, ...) {
+  // Use more stack space to support logging for max text length of 700 characters
+  char log_data[MAX_LOGSZ];
+
+  va_list arg;
+  va_start(arg, formatP);
+  uint32_t len = vsnprintf_P(log_data, sizeof(log_data), formatP, arg);
   va_end(arg);
 
   AddLogData(loglevel, log_data);
@@ -2074,11 +2240,11 @@ void AddLog_P(uint32_t loglevel, PGM_P formatP, ...)
 
 void AddLog_Debug(PGM_P formatP, ...)
 {
-  char log_data[LOGSZ];
+  char log_data[MAX_LOGSZ];
 
   va_list arg;
   va_start(arg, formatP);
-  vsnprintf_P(log_data, sizeof(log_data), formatP, arg);
+  uint32_t len = vsnprintf_P(log_data, sizeof(log_data), formatP, arg);
   va_end(arg);
 
   AddLogData(LOG_LEVEL_DEBUG, log_data);
@@ -2097,17 +2263,17 @@ void AddLogSerial(uint32_t loglevel)
 
 void AddLogMissed(const char *sensor, uint32_t misses)
 {
-  AddLog_P(LOG_LEVEL_DEBUG, PSTR("SNS: %s missed %d"), sensor, SENSOR_MAX_MISS - misses);
+  AddLog(LOG_LEVEL_DEBUG, PSTR("SNS: %s missed %d"), sensor, SENSOR_MAX_MISS - misses);
 }
 
 void AddLogBufferSize(uint32_t loglevel, uint8_t *buffer, uint32_t count, uint32_t size) {
-  char log_data[LOGSZ];
+  char log_data[4 + (count * size * 3)];
 
   snprintf_P(log_data, sizeof(log_data), PSTR("DMP:"));
   for (uint32_t i = 0; i < count; i++) {
-    if (1 ==  size) {  // uint8_t
+    if (1 == size) {  // uint8_t
       snprintf_P(log_data, sizeof(log_data), PSTR("%s %02X"), log_data, *(buffer));
-    } else {           // uint16_t
+    } else {          // uint16_t
       snprintf_P(log_data, sizeof(log_data), PSTR("%s %02X%02X"), log_data, *(buffer +1), *(buffer));
     }
     buffer += size;
@@ -2120,15 +2286,15 @@ void AddLogSpi(bool hardware, uint32_t clk, uint32_t mosi, uint32_t miso) {
   uint32_t enabled = (hardware) ? TasmotaGlobal.spi_enabled : TasmotaGlobal.soft_spi_enabled;
   switch(enabled) {
     case SPI_MOSI:
-      AddLog_P(LOG_LEVEL_INFO, PSTR("SPI: %s using GPIO%02d(CLK) and GPIO%02d(MOSI)"),
+      AddLog(LOG_LEVEL_INFO, PSTR("SPI: %s using GPIO%02d(CLK) and GPIO%02d(MOSI)"),
         (hardware) ? PSTR("Hardware") : PSTR("Software"), clk, mosi);
       break;
     case SPI_MISO:
-      AddLog_P(LOG_LEVEL_INFO, PSTR("SPI: %s using GPIO%02d(CLK) and GPIO%02d(MISO)"),
+      AddLog(LOG_LEVEL_INFO, PSTR("SPI: %s using GPIO%02d(CLK) and GPIO%02d(MISO)"),
         (hardware) ? PSTR("Hardware") : PSTR("Software"), clk, miso);
       break;
     case SPI_MOSI_MISO:
-      AddLog_P(LOG_LEVEL_INFO, PSTR("SPI: %s using GPIO%02d(CLK), GPIO%02d(MOSI) and GPIO%02d(MISO)"),
+      AddLog(LOG_LEVEL_INFO, PSTR("SPI: %s using GPIO%02d(CLK), GPIO%02d(MOSI) and GPIO%02d(MISO)"),
         (hardware) ? PSTR("Hardware") : PSTR("Software"), clk, mosi, miso);
       break;
   }

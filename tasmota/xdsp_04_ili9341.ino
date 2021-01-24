@@ -1,7 +1,7 @@
 /*
   xdsp_04_ili9341.ino - Display Tft Ili9341 support for Tasmota
 
-  Copyright (C) 2020  Theo Arends and Adafruit
+  Copyright (C) 2021  Theo Arends and Adafruit
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -118,7 +118,7 @@ void Ili9341InitDriver(void) {
     Ili9341InitMode();
 
     tft_init_done = true;
-    AddLog_P(LOG_LEVEL_INFO, PSTR("DSP: ILI9341"));
+    AddLog(LOG_LEVEL_INFO, PSTR("DSP: ILI9341"));
   }
 }
 
@@ -195,7 +195,7 @@ void Ili9341PrintLog(void) {
         DisplayFillScreen(last_row);
         tft->print(disp_screen_buffer[last_row]);
       }
-      AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION "[%s]"), txt);
+      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION "[%s]"), txt);
     }
   }
 }

@@ -1,7 +1,7 @@
 /*
   xdrv_23_zigbee_1_headers.ino - zigbee support for Tasmota
 
-  Copyright (C) 2020  Theo Arends and Stephan Hadinger
+  Copyright (C) 2021  Theo Arends and Stephan Hadinger
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -105,7 +105,11 @@ public:
   ZB_RecvMsgFunc recv_func = nullptr;          // function to call when message is expected
   ZB_RecvMsgFunc recv_unexpected = nullptr;    // function called when unexpected message is received
 
+#ifdef USE_ZIGBEE_EZSP
   uint32_t permit_end_time = 0;       // timestamp when permit join ends
+#elif defined(USE_ZIGBEE_ZNP)
+  bool permit_end_time = false;       // in ZNP mode it's only a boolean
+#endif
 
 #ifdef USE_ZIGBEE_EZSP
   Eeprom24C512 eeprom;     // takes only 1 bytes of RAM

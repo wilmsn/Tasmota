@@ -1,7 +1,7 @@
 /*
   tasmota_template.h - template settings for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -141,6 +141,13 @@ enum UserSelectablePins {
   GPIO_SSD1351_CS,
   GPIO_RA8876_CS,
   GPIO_ST7789_CS, GPIO_ST7789_DC,
+  GPIO_SSD1331_CS, GPIO_SSD1331_DC,
+  GPIO_SDCARD_CS,
+  GPIO_ROT1A_NP, GPIO_ROT1B_NP,        // Rotary switch
+  GPIO_ADC_PH,                         // Analog PH Sensor
+  GPIO_BS814_CLK, GPIO_BS814_DAT,      // Holtek BS814A2 touch ctrlr
+  GPIO_WIEGAND_D0, GPIO_WIEGAND_D1,    // Wiegand Data lines
+  GPIO_NEOPOOL_TX, GPIO_NEOPOOL_RX,    // Sugar Valley RS485 interface
   GPIO_SENSOR_END };
 
 enum ProgramSelectablePins {
@@ -234,7 +241,7 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_CSE7766_TX "|" D_SENSOR_CSE7766_RX "|"
   D_SENSOR_ARIRFRCV "|" D_SENSOR_ARIRFSEL "|"
   D_SENSOR_TXD "|" D_SENSOR_RXD "|"
-  D_SENSOR_ROTARY "_a|" D_SENSOR_ROTARY "_b|"
+  D_SENSOR_ROTARY " A|" D_SENSOR_ROTARY " B|"
   D_SENSOR_ADC_JOYSTICK "|"
   D_SENSOR_MAX31865_CS "|"
   D_SENSOR_HRE_CLOCK "|" D_SENSOR_HRE_DATA "|"
@@ -291,7 +298,7 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_SHELLY_DIMMER_BOOT0 "|" D_SENSOR_SHELLY_DIMMER_RST_INV "|"
   D_SENSOR_RC522_RST "|"
   D_SENSOR_P9813_CLK "|" D_SENSOR_P9813_DAT "|"
-  D_SENSOR_OPTION "_a|"
+  D_SENSOR_OPTION " A|"
   D_SENSOR_FTC532 "|"
   D_SENSOR_RC522_CS "|"
   D_SENSOR_NRF24_CS "|" D_SENSOR_NRF24_DC "|"
@@ -302,6 +309,13 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_SSD1351_CS "|"
   D_SENSOR_RA8876_CS "|"
   D_SENSOR_ST7789_CS "|" D_SENSOR_ST7789_DC "|"
+  D_SENSOR_SSD1331_CS "|" D_SENSOR_SSD1331_DC "|"
+  D_SENSOR_SDCARD_CS "|"
+  D_SENSOR_ROTARY " A_n|" D_SENSOR_ROTARY " B_n|"
+  D_SENSOR_ADC_PH "|"
+  D_SENSOR_BS814_CLK "|" D_SENSOR_BS814_DAT "|"
+  D_SENSOR_WIEGAND_D0 "|" D_SENSOR_WIEGAND_D1 "|"
+  D_SENSOR_NEOPOOL_TX "|" D_SENSOR_NEOPOOL_RX "|"
   ;
 
 const char kSensorNamesFixed[] PROGMEM =
@@ -311,7 +325,7 @@ const char kSensorNamesFixed[] PROGMEM =
 #define MAX_A4988_MSS    3
 #define MAX_WEBCAM_DATA  8
 #define MAX_WEBCAM_HSD   3
-#define MAX_SM2135_DAT   4
+#define MAX_SM2135_DAT   6
 
 const uint16_t kGpioNiceList[] PROGMEM = {
   GPIO_NONE,                            // Not used
@@ -326,6 +340,8 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #ifdef ROTARY_V1
   AGPIO(GPIO_ROT1A) + MAX_ROTARIES,     // Rotary A Pin
   AGPIO(GPIO_ROT1B) + MAX_ROTARIES,     // Rotary B Pin
+  AGPIO(GPIO_ROT1A_NP) + MAX_ROTARIES,  // Rotary A Pin No Pullup
+  AGPIO(GPIO_ROT1B_NP) + MAX_ROTARIES,  // Rotary B Pin No Pullup
 #endif
   AGPIO(GPIO_REL1) + MAX_RELAYS,        // Relays
   AGPIO(GPIO_REL1_INV) + MAX_RELAYS,
@@ -347,6 +363,10 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_OUTPUT_LO),                // Fixed output low
 #ifdef USE_FTC532
   AGPIO(GPIO_FTC532),                   // FTC532 touch input
+#endif
+#ifdef USE_BS814A2
+  AGPIO(GPIO_BS814_CLK),                // Holtek BS814A2 touch ctrlr
+  AGPIO(GPIO_BS814_DAT),
 #endif
 
 /*-------------------------------------------------------------------------------------------*\
@@ -372,12 +392,9 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_RC522_CS),                 // RC522 Rfid Chip Select
   AGPIO(GPIO_RC522_RST),                // RC522 Rfid Reset
 #endif
-#ifdef USE_DISPLAY
-#ifdef USE_DISPLAY_ILI9341
-  AGPIO(GPIO_ILI9341_CS),
-  AGPIO(GPIO_ILI9341_DC),
-#endif  // USE_DISPLAY_ILI9341
-#endif  // USE_DISPLAY
+#ifdef USE_SDCARD
+  AGPIO(GPIO_SDCARD_CS),
+#endif  // USE_SDCARD
 #endif  // USE_SPI
   AGPIO(GPIO_SSPI_MISO),      // Software SPI Master Input Client Output
   AGPIO(GPIO_SSPI_MOSI),      // Software SPI Master Output Client Input
@@ -385,6 +402,10 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_SSPI_CS),        // Software SPI Chip Select
   AGPIO(GPIO_SSPI_DC),        // Software SPI Data or Command
 #ifdef USE_DISPLAY
+#ifdef USE_DISPLAY_ILI9341
+  AGPIO(GPIO_ILI9341_CS),
+  AGPIO(GPIO_ILI9341_DC),
+#endif  // USE_DISPLAY_ILI9341
 #ifdef USE_DISPLAY_ILI9488
   AGPIO(GPIO_ILI9488_CS),
 #endif  // USE_DISPLAY_ILI9488
@@ -403,7 +424,11 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #ifdef USE_DISPLAY_ST7789
   AGPIO(GPIO_ST7789_CS),
   AGPIO(GPIO_ST7789_DC),
-#endif  //f USE_DISPLAY_ST7789
+#endif  // USE_DISPLAY_ST7789
+#ifdef USE_DISPLAY_SSD1331
+  AGPIO(GPIO_SSD1331_CS),
+  AGPIO(GPIO_SSD1331_DC),
+#endif  // USE_DISPLAY_SSD1331
   AGPIO(GPIO_BACKLIGHT),      // Display backlight control
   AGPIO(GPIO_OLED_RESET),     // OLED Display Reset
 #endif
@@ -714,6 +739,14 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_MIEL_HVAC_TX),    // Mitsubishi Electric HVAC TX pin
   AGPIO(GPIO_MIEL_HVAC_RX),    // Mitsubishi Electric HVAC RX pin
 #endif
+#ifdef USE_WIEGAND
+  AGPIO(GPIO_WIEGAND_D0),      // Date line D0 of Wiegand devices
+  AGPIO(GPIO_WIEGAND_D1),      // Date line D1 of Wiegand devices
+#endif
+#ifdef USE_NEOPOOL
+  AGPIO(GPIO_NEOPOOL_TX),      // Sugar Valley RS485 Interface
+  AGPIO(GPIO_NEOPOOL_RX),      // Sugar Valley RS485 Interface
+#endif
 
 /*-------------------------------------------------------------------------------------------*\
  * ESP32 specifics
@@ -752,6 +785,7 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_ADC_RANGE) + MAX_ADCS,       // Range
   AGPIO(GPIO_ADC_CT_POWER) + MAX_ADCS,    // Current
   AGPIO(GPIO_ADC_JOY) + MAX_ADCS,         // Joystick
+  AGPIO(GPIO_ADC_PH) + MAX_ADCS,          // Analog PH Sensor
 #endif  // ESP32
 };
 
@@ -770,6 +804,7 @@ const uint16_t kAdcNiceList[] PROGMEM = {
   AGPIO(GPIO_ADC_RANGE),                  // Range
   AGPIO(GPIO_ADC_CT_POWER),               // Current
   AGPIO(GPIO_ADC_JOY),                    // Joystick
+  AGPIO(GPIO_ADC_PH),                     // Analog PH Sensor
 };
 #endif  // ESP8266
 
@@ -784,6 +819,7 @@ enum UserSelectableAdc {
   ADC_RANGE,          // Range
   ADC_CT_POWER,       // Current
   ADC_JOY,            // Joystick
+  ADC_PH,             // Analog PH Sensor
 //  ADC_SWITCH,         // Switch
 //  ADC_SWITCH_INV,
   ADC_END };
@@ -2461,7 +2497,7 @@ const mytmplt kModules[] PROGMEM =
     AGPIO(GPIO_SPI_MISO),        // 19      IO                  GPIO19, VSPI_MISO
     0,                           // 20
     AGPIO(GPIO_ILI9341_DC),      // 21      IO                  GPIO21, SPI_DC_LCD
-    0,                           // 22      IO      LED         GPIO22, VSPI_CS1_TFLASH
+    AGPIO(GPIO_SDCARD_CS),       // 22      IO      LED         GPIO22, VSPI_CS1_TFLASH
     AGPIO(GPIO_SPI_MOSI),        // 23      IO                  GPIO23, VSPI_MOSI
     0,                           // 24
     0,                           // 25      IO                  GPIO25, DAC_1 (PAM8304A)
@@ -2488,7 +2524,7 @@ const mytmplt kModules[] PROGMEM =
     AGPIO(GPIO_USER),            // 1       IO     TXD0         GPIO1, U0TXD
     AGPIO(GPIO_USER),            // 2       IO                  GPIO2, SPKR_DATA
     AGPIO(GPIO_USER),            // 3       IO     RXD0         GPIO3, U0RXD
-    0,                           // 4       IO                  GPIO4, SPI_CS_CARD
+    AGPIO(GPIO_SDCARD_CS),       // 4       IO                  GPIO4, SPI_CS_CARD
     0,                           // 5       IO                  GPIO5, SPI_CS_LCD
                                  // 6       IO                  GPIO6, Flash CLK
                                  // 7       IO                  GPIO7, Flash D0
