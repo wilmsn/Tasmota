@@ -80,6 +80,7 @@ WiFiUDP udpServer;
 WiFiServer tcpServer(RF24GW_TCP_PORTNO);
 WiFiClient clients[RF24GW_MAX_TCP_CONNECTIONS];
 
+uint16_t gw_no = RF24GW_GW_NO; 
 uint8_t  rf24gw_node2hub[] = RF24GW_NODE2HUB;
 uint8_t  rf24gw_hub2node[] = RF24GW_HUB2NODE;
 char rf24gw_tcp_buffer[RF24GW_MAX_TCP_CONNECTIONS][30];
@@ -177,7 +178,7 @@ void rf24gw_handle(void) {
         AddLog_P(LOG_LEVEL_INFO, PSTR("RF24GW: Got radio from Node: %u"), payload.node_id);
     }
     memcpy(&udpdata.payload, &payload, sizeof(payload));
-    udpdata.gw_no = RF24GW_GW_NO;
+    udpdata.gw_no = gw_no;
     udpServer.beginPacket(RF24GW_HUB_IP, RF24GW_HUB_UDP_PORTNO);
     udpServer.write((char*)&udpdata, sizeof(udpdata));
     udpServer.endPacket();
@@ -245,7 +246,7 @@ void rf24gw_handle(void) {
 }
 
 void rf24gw_showWeb(void) {
-  WSContentSend_PD(PSTR("{s}RF24GW{m}%s{e}"),webmsg);
+  WSContentSend_PD(PSTR("{s}RF24GW (%u){m}%s{e}"),gw_no,webmsg);
 }
 
 #endif
